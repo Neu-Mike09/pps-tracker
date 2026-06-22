@@ -139,27 +139,7 @@ export async function appendCommunicationRow(communicationId: string) {
   });
   if (!comm) throw new Error("Communication not found");
 
-  const formatDate = (d: Date | null | undefined): string => {
-    if (!d) return "";
-    return d.toISOString().slice(0, 10); // YYYY-MM-DD
-  };
-
-  const row = [
-    comm.controlNo,
-    formatDate(comm.dateReceived),
-    formatDate(comm.dateOfDocument),
-    comm.documentType || "",
-    comm.fromOffice || "",
-    comm.subject || "",
-    comm.referenceNo || "",
-    comm.assignedTo || "",
-    formatDate(comm.targetDate),
-    formatDate(comm.dateCompleted),
-    comm.status || "",
-    comm.activityCategory || "",
-    comm.remarks || "",
-    String(comm.year),
-  ];
+  const row = buildRow(comm);
 
   // Find next empty row by reading column A starting at row 5
   const readRes = await sheets.spreadsheets.values.get({
@@ -177,6 +157,112 @@ export async function appendCommunicationRow(communicationId: string) {
   });
 
   return true;
+}
+
+/**
+ * Update an existing communication row in the Google Sheet.
+ * Finds the row by Control No. (column A) and overwrites columns A-N.
+ * If the control number is not found, appends a new row instead.
+ *
+ * Returns { action: "updated" | "appended", rowNumber: number }
+ */
+export async function updateCommunicationRow(communicationId: string) {
+  const config = await getSheetsConfig();
+  if (!config) throw new Error("Google Sheets not configured. Add credentials in Settings.");
+
+  const auth = getAuthClient(config);
+  const sheets = google.sheets({ version: "v4", auth });
+
+  const comm = await db.communication.findUnique({
+    where: { id: communicationId },
+  });
+  if (!comm) throw new Error("Communication not found");
+
+  const row = buildRow(comm);
+
+  // Read all of column A (control numbers) to find the matching row.
+  // Data starts at row 5 (header is row 4). Read from A5:A to get control numbers.
+  const readRes = await sheets.spreadsheets.values.get({
+    spreadsheetId: config.spreadsheetId,
+    range: `${config.sheetName}!A5:A`,
+  });
+
+  const controlNumbers = readRes.data.values || [];
+  let targetRowNumber = -1;
+
+  // Find the row whose control number matches (compare as strings, case-sensitive)
+  // Note: index 0 = row 5, index 1 = row 6, etc.
+  for (let i = 0; i < controlNumbers.length; i++) {
+    const cellValue = controlNumbers[i]?.[0];
+    if (cellValue && String(cellValue).trim() === comm.controlNo) {
+      targetRowNumber = 5 + i;
+      break;
+    }
+  }
+
+  if (targetRowNumber === -1) {
+    // Control number not found in the sheet - append as a new row
+    const nextRow = 5 + controlNumbers.length;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config.spreadsheetId,
+      range: `${config.sheetName}!A${nextRow}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [row] },
+    });
+    return { action: "appended" as const, rowNumber: nextRow };
+  }
+
+  // Update the existing row (columns A through N)
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: config.spreadsheetId,
+    range: `${config.sheetName}!A${targetRowNumber}:N${targetRowNumber}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [row] },
+  });
+
+  return { action: "updated" as const, rowNumber: targetRowNumber };
+}
+
+/**
+ * Helper: convert a Communication record to a row array (14 columns A-N)
+ * matching the Sheet header order.
+ */
+function buildRow(comm: {
+  controlNo: string;
+  dateReceived: Date;
+  dateOfDocument: Date | null;
+  documentType: string | null;
+  fromOffice: string | null;
+  subject: string | null;
+  referenceNo: string | null;
+  assignedTo: string | null;
+  targetDate: Date | null;
+  dateCompleted: Date | null;
+  status: string | null;
+  activityCategory: string | null;
+  remarks: string | null;
+  year: number;
+}): string[] {
+  const formatDate = (d: Date | null | undefined): string => {
+    if (!d) return "";
+    return d.toISOString().slice(0, 10); // YYYY-MM-DD
+  };
+  return [
+    comm.controlNo,
+    formatDate(comm.dateReceived),
+    formatDate(comm.dateOfDocument),
+    comm.documentType || "",
+    comm.fromOffice || "",
+    comm.subject || "",
+    comm.referenceNo || "",
+    comm.assignedTo || "",
+    formatDate(comm.targetDate),
+    formatDate(comm.dateCompleted),
+    comm.status || "",
+    comm.activityCategory || "",
+    comm.remarks || "",
+    String(comm.year),
+  ];
 }
 
 /**

@@ -213,7 +213,16 @@ export function RecordsView() {
       if (!res.ok) throw new Error(data.error || "Update failed");
       setRecords((prev) => prev.map((r) => (r.id === updated.id ? data.record : r)));
       setEditingRecord(null);
-      toast({ title: "Record updated" });
+      // Show sync status in the toast: green if synced, amber if sync failed
+      if (data.warning) {
+        toast({
+          title: "Record updated (sync issue)",
+          description: data.warning,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Record updated", description: "Database + Google Sheet synced." });
+      }
     } catch (e) {
       toast({
         title: "Update failed",
@@ -556,6 +565,23 @@ function EditRecordDialog({
               <Button variant="outline" size="sm" onClick={() => onShowPhoto(form)}>
                 <ImageIcon className="w-3 h-3 mr-1" /> View Document Photo
               </Button>
+            </div>
+          )}
+          {/* Sync status banner */}
+          {form.syncStatus === "failed" && (
+            <div className="flex items-start gap-2 p-2 rounded-md bg-red-50 border border-red-200 text-xs text-red-700">
+              <CloudOff className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-medium">Last Google Sheet sync failed</div>
+                <div className="opacity-80 truncate">{form.syncError || "Unknown error"}</div>
+                <div className="mt-0.5">Saving will retry the sync automatically.</div>
+              </div>
+            </div>
+          )}
+          {form.syncStatus === "synced" && form.sheetSyncedAt && (
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-700">
+              <CheckCircle2 className="w-3 h-3" />
+              Last synced to Google Sheet {new Date(form.sheetSyncedAt).toLocaleString()}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">

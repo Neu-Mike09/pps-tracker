@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { appendCommunicationRow } from "@/lib/sheets";
+import { appendCommunicationRow, updateCommunicationRow, getSheetsConfig } from "@/lib/sheets";
 
 export const runtime = "nodejs";
 
@@ -59,7 +59,49 @@ export async function PATCH(
 
   const record = await db.communication.update({ where: { id }, data });
 
-  return NextResponse.json({ record });
+  // Sync the update to Google Sheets (find-and-update by control number).
+  // Non-fatal: if sync fails, the DB update is still preserved; we just
+  // mark syncStatus as "failed" so the user can retry from the Records view.
+  const sheetsConfig = await getSheetsConfig();
+  if (sheetsConfig) {
+    try {
+      await updateCommunicationRow(record.id);
+      const updated = await db.communication.update({
+        where: { id: record.id },
+        data: {
+          syncStatus: "synced",
+          sheetSyncedAt: new Date(),
+          syncError: null,
+        },
+      });
+      await db.syncLog.create({
+        data: { communicationId: record.id, status: "success" },
+      });
+      return NextResponse.json({ record: updated });
+    } catch (syncErr) {
+      const errMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
+      const updated = await db.communication.update({
+        where: { id: record.id },
+        data: {
+          syncStatus: "failed",
+          syncError: errMsg,
+        },
+      });
+      await db.syncLog.create({
+        data: { communicationId: record.id, status: "failed", error: errMsg },
+      });
+      return NextResponse.json({
+        record: updated,
+        warning: `Saved to database, but Google Sheets sync failed: ${errMsg}. You can retry from the Records page.`,
+      });
+    }
+  }
+
+  // Sheets not configured - just return the DB record
+  return NextResponse.json({
+    record,
+    warning: "Google Sheets not configured. Update saved locally only.",
+  });
 }
 
 // DELETE /api/communications/[id] - admin only
@@ -90,7 +132,9 @@ export async function POST(
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {
-    await appendCommunicationRow(existing.id);
+    // Use update (finds row by control no., updates if found, appends if not).
+    // This handles both "retry a failed create" and "retry a failed edit".
+    await updateCommunicationRow(existing.id);
     const updated = await db.communication.update({
       where: { id },
       data: {
