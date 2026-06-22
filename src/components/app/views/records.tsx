@@ -110,8 +110,13 @@ export function RecordsView() {
       if (categoryFilter) params.set("category", categoryFilter);
       if (overdueOnly) params.set("overdue", "1");
       const res = await fetch(`/api/communications?${params}`);
+      if (res.status === 401) {
+        // Session expired - reload to trigger login screen
+        window.location.reload();
+        return;
+      }
       const data = await res.json();
-      setRecords(data.records || []);
+      setRecords(Array.isArray(data.records) ? data.records : []);
     } catch (e) {
       toast({
         title: "Failed to load records",

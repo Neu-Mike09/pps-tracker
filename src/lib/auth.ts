@@ -50,8 +50,10 @@ export async function createSession(user: { id: string; username: string; name: 
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
+    // Use "none" so the cookie is sent on cross-origin preview/embed requests.
+    // Requires secure=true in production; in dev we keep secure=false so HTTP works.
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });

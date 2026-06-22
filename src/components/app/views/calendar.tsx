@@ -48,8 +48,20 @@ export function CalendarView() {
       const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
       try {
         const r = await fetch(`/api/calendar?month=${monthStr}`);
+        if (r.status === 401) {
+          window.location.reload();
+          return;
+        }
         const d = await r.json();
-        if (!cancelled) setData(d);
+        // Defensive: ensure events is always an object
+        const safeData: CalData = {
+          year: d.year ?? year,
+          month: d.month ?? month + 1,
+          events: (d.events && typeof d.events === "object") ? d.events : {},
+        };
+        if (!cancelled) setData(safeData);
+      } catch {
+        if (!cancelled) setData({ year, month: month + 1, events: {} });
       } finally {
         if (!cancelled) setLoading(false);
       }

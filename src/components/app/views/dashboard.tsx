@@ -42,20 +42,72 @@ interface DashboardData {
 export function DashboardView() {
   const setView = useAppStore((s) => s.setView);
   const setEditId = useAppStore((s) => s.setEditId);
+  const setUser = useAppStore((s) => s.setUser);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/dashboard")
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const r = await fetch("/api/dashboard");
+        if (!r.ok) {
+          if (r.status === 401) {
+            // Session expired or invalid - sign out and show login
+            setUser(null);
+            return;
+          }
+          const errData = await r.json().catch(() => ({}));
+          throw new Error(errData.error || `Request failed (${r.status})`);
+        }
+        const d = await r.json();
+        // Defensive: ensure all expected fields exist (in case API shape changes)
+        const safe: DashboardData = {
+          total: d.total ?? 0,
+          statusCounts: d.statusCounts ?? {},
+          categoryCounts: d.categoryCounts ?? {},
+          overdue: d.overdue ?? 0,
+          pendingSync: d.pendingSync ?? 0,
+          syncedCount: d.syncedCount ?? 0,
+          recent: Array.isArray(d.recent) ? d.recent : [],
+          upcoming: Array.isArray(d.upcoming) ? d.upcoming : [],
+          yearAgg: Array.isArray(d.yearAgg) ? d.yearAgg : [],
+        };
+        if (!cancelled) setData(safe);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, [setUser]);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="w-8 h-8 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+        <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-3">
+          <span className="text-red-600 text-xl">!</span>
+        </div>
+        <div className="text-base font-medium text-slate-900 mb-1">Could not load dashboard</div>
+        <div className="text-sm text-slate-500 mb-4">{error || "Unknown error"}</div>
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          Retry
+        </Button>
       </div>
     );
   }

@@ -71,18 +71,49 @@ export function SettingsView() {
 
   const loadSettings = async () => {
     setLoading(true);
-    const res = await fetch("/api/settings");
-    const data = await res.json();
-    setSettings(data);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/settings");
+      if (res.status === 401) {
+        window.location.reload();
+        return;
+      }
+      const data = await res.json();
+      // Defensive: ensure required fields exist
+      setSettings({
+        configured: Boolean(data.configured),
+        spreadsheetId: data.spreadsheetId || "",
+        clientEmail: data.clientEmail || "",
+        privateKey: data.privateKey || "",
+        sheetName: data.sheetName || "Incoming Communications",
+      });
+    } catch {
+      setSettings({
+        configured: false,
+        spreadsheetId: "",
+        clientEmail: "",
+        privateKey: "",
+        sheetName: "Incoming Communications",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadUsers = async () => {
     setUsersLoading(true);
-    const res = await fetch("/api/users");
-    const data = await res.json();
-    setUsers(data.users || []);
-    setUsersLoading(false);
+    try {
+      const res = await fetch("/api/users");
+      if (res.status === 401) {
+        window.location.reload();
+        return;
+      }
+      const data = await res.json();
+      setUsers(Array.isArray(data.users) ? data.users : []);
+    } catch {
+      setUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
   };
 
   useEffect(() => {
