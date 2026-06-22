@@ -62,6 +62,18 @@ export async function createSession(user: { id: string; username: string; name: 
 
 export async function destroySession() {
   const cookieStore = await cookies();
+  // Match the exact attributes used in createSession so the browser
+  // reliably overwrites/deletes the cookie. Using .delete() alone can
+  // fail to clear cookies that were set with SameSite=None; Secure.
+  cookieStore.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+    maxAge: 0,
+    expires: new Date(0),
+  });
+  // Also try a plain delete as a fallback
   cookieStore.delete(SESSION_COOKIE);
 }
 

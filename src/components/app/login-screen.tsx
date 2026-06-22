@@ -29,6 +29,12 @@ export function LoginScreen() {
       if (!res.ok) {
         setError(data.error || "Login failed");
       } else {
+        // Clear the logout flag so future page loads check the session normally
+        try {
+          localStorage.removeItem("pps_logged_out");
+        } catch {
+          // ignore localStorage errors in restricted embed contexts
+        }
         setUser(data.user);
       }
     } catch (err) {

@@ -5,6 +5,8 @@ import { useAppStore } from "@/lib/store";
 import { LoginScreen } from "@/components/app/login-screen";
 import { AppShell } from "@/components/app/app-shell";
 
+const LOGOUT_FLAG = "pps_logged_out";
+
 export default function Home() {
   const user = useAppStore((s) => s.user);
   const authLoading = useAppStore((s) => s.authLoading);
@@ -13,7 +15,17 @@ export default function Home() {
 
   useEffect(() => {
     let mounted = true;
-    fetch("/api/auth/me")
+
+    // If the user explicitly logged out (flag set), skip the server check
+    // and go straight to the login screen. The flag is cleared when the
+    // user successfully logs in again (see login-screen.tsx).
+    if (localStorage.getItem(LOGOUT_FLAG) === "1") {
+      setUser(null);
+      setAuthLoading(false);
+      return;
+    }
+
+    fetch("/api/auth/me", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (mounted) {

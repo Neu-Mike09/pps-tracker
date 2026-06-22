@@ -32,12 +32,31 @@ export function AppShell() {
   const view = useAppStore((s) => s.view);
   const setView = useAppStore((s) => s.setView);
   const user = useAppStore((s) => s.user);
+  const setUser = useAppStore((s) => s.setUser);
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.reload();
+    // Set a local flag so the page reload skips the /api/auth/me check
+    // (which can return the stale user if the cookie wasn't cleared
+    // properly in cross-origin iframe scenarios).
+    try {
+      localStorage.setItem("pps_logged_out", "1");
+    } catch {
+      // localStorage may be unavailable in some embed contexts - ignore
+    }
+    try {
+      // Call the logout endpoint to clear the session cookie on the server.
+      // Use keepalive so the request completes even if the page is unloading.
+      await fetch("/api/auth/logout", { method: "POST", keepalive: true });
+    } catch {
+      // Ignore network errors — we clear local state regardless
+    }
+    // Immediately clear the user from the store so the UI switches to the
+    // login screen without relying on a page reload + cookie round-trip.
+    setUser(null);
+    // Hard reload to reset all component state and trigger the logout flag check.
+    window.location.href = "/";
   };
 
   return (
