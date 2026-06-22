@@ -42,10 +42,10 @@ interface DashboardData {
 export function DashboardView() {
   const setView = useAppStore((s) => s.setView);
   const setEditId = useAppStore((s) => s.setEditId);
-  const setUser = useAppStore((s) => s.setUser);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,11 +55,6 @@ export function DashboardView() {
       try {
         const r = await fetch("/api/dashboard");
         if (!r.ok) {
-          if (r.status === 401) {
-            // Session expired or invalid - sign out and show login
-            setUser(null);
-            return;
-          }
           const errData = await r.json().catch(() => ({}));
           throw new Error(errData.error || `Request failed (${r.status})`);
         }
@@ -87,7 +82,7 @@ export function DashboardView() {
     return () => {
       cancelled = true;
     };
-  }, [setUser]);
+  }, [retryKey]);
 
   if (loading) {
     return (
@@ -105,7 +100,7 @@ export function DashboardView() {
         </div>
         <div className="text-base font-medium text-slate-900 mb-1">Could not load dashboard</div>
         <div className="text-sm text-slate-500 mb-4">{error || "Unknown error"}</div>
-        <Button variant="outline" onClick={() => window.location.reload()}>
+        <Button variant="outline" onClick={() => setRetryKey((k) => k + 1)}>
           Retry
         </Button>
       </div>

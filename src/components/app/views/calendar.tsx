@@ -49,7 +49,7 @@ export function CalendarView() {
       try {
         const r = await fetch(`/api/calendar?month=${monthStr}`);
         if (r.status === 401) {
-          window.location.reload();
+          if (!cancelled) setData({ year, month: month + 1, events: {} });
           return;
         }
         const d = await r.json();

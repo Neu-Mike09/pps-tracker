@@ -111,8 +111,9 @@ export function RecordsView() {
       if (overdueOnly) params.set("overdue", "1");
       const res = await fetch(`/api/communications?${params}`);
       if (res.status === 401) {
-        // Session expired - reload to trigger login screen
-        window.location.reload();
+        // Session cookie missing - just show empty state, don't force reload
+        setRecords([]);
+        setLoading(false);
         return;
       }
       const data = await res.json();

@@ -74,7 +74,13 @@ export function SettingsView() {
     try {
       const res = await fetch("/api/settings");
       if (res.status === 401) {
-        window.location.reload();
+        setSettings({
+          configured: false,
+          spreadsheetId: "",
+          clientEmail: "",
+          privateKey: "",
+          sheetName: "Incoming Communications",
+        });
         return;
       }
       const data = await res.json();
@@ -104,7 +110,7 @@ export function SettingsView() {
     try {
       const res = await fetch("/api/users");
       if (res.status === 401) {
-        window.location.reload();
+        setUsers([]);
         return;
       }
       const data = await res.json();

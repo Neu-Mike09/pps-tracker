@@ -48,12 +48,13 @@ export async function createSession(user: { id: string; username: string; name: 
     exp: Date.now() + SESSION_MAX_AGE * 1000,
   });
   const cookieStore = await cookies();
+  // Always use SameSite=None + Secure so the cookie is sent inside cross-origin
+  // iframes (e.g. the chat preview embed). The preview is always served over HTTPS,
+  // and modern browsers treat http://localhost as a secure context too.
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    // Use "none" so the cookie is sent on cross-origin preview/embed requests.
-    // Requires secure=true in production; in dev we keep secure=false so HTTP works.
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: true,
+    sameSite: "none",
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
