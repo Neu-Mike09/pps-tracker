@@ -64,7 +64,12 @@ function getAuthClient(config: Awaited<ReturnType<typeof getSheetsConfig>>) {
   return new google.auth.JWT({
     email: config.clientEmail,
     key: config.privateKey,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    // Include both Sheets and Calendar scopes so the same Service Account
+    // can sync to Google Sheets AND Google Calendar.
+    scopes: [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/calendar",
+    ],
   });
 }
 
@@ -263,6 +268,30 @@ function buildRow(comm: {
     comm.remarks || "",
     String(comm.year),
   ];
+}
+
+/**
+ * Get the Google Calendar ID from settings.
+ * Returns "primary" by default (the Service Account's primary calendar).
+ * Users can set this to their personal calendar ID by sharing their calendar
+ * with the Service Account email.
+ */
+export async function getCalendarId(): Promise<string> {
+  const setting = await db.setting.findUnique({
+    where: { key: "google_calendar_id" },
+  });
+  return setting?.value || "primary";
+}
+
+/**
+ * Save the Google Calendar ID setting.
+ */
+export async function saveCalendarId(calendarId: string): Promise<void> {
+  await db.setting.upsert({
+    where: { key: "google_calendar_id" },
+    update: { value: calendarId },
+    create: { key: "google_calendar_id", value: calendarId },
+  });
 }
 
 /**

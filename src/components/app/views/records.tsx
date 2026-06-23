@@ -21,6 +21,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Search,
   Plus,
   AlertTriangle,
@@ -33,6 +44,10 @@ import {
   CloudUpload,
   CloudOff,
   CheckCircle2,
+  Trash2,
+  Calendar as CalendarIcon,
+  FileText,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -69,12 +84,21 @@ interface Record {
   syncStatus: string;
   syncError: string | null;
   sheetSyncedAt: string | null;
+  calendarEventId: string | null;
+  calendarSyncedAt: string | null;
+  calendarSyncStatus: string;
+  calendarSyncError: string | null;
 }
 
 const today = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
+};
+
+const isImageFile = (path: string): boolean => {
+  const ext = path.split(".").pop()?.toLowerCase() || "";
+  return ["jpg", "jpeg", "png", "webp", "gif", "bmp"].includes(ext);
 };
 
 const fmtDate = (s: string | null): string => {
@@ -89,6 +113,8 @@ export function RecordsView() {
   const setView = useAppStore((s) => s.setView);
   const editId = useAppStore((s) => s.editId);
   const setEditId = useAppStore((s) => s.setEditId);
+  const currentUser = useAppStore((s) => s.user);
+  const isAdmin = currentUser?.role === "admin";
 
   const [records, setRecords] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,6 +255,19 @@ export function RecordsView() {
         description: e instanceof Error ? e.message : String(e),
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDelete = async (record: Record) => {
+    try {
+      const res = await fetch(`/api/communications/${record.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Delete failed (${res.status})`);
+      setRecords((prev) => prev.filter((r) => r.id !== record.id));
+      setEditingRecord(null);
+      toast({ title: "Record deleted", description: `${record.controlNo} has been permanently removed.` });
+    } catch (e) {
+      toast({ title: "Delete failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -485,6 +524,7 @@ export function RecordsView() {
           record={editingRecord}
           onClose={() => setEditingRecord(null)}
           onSave={handleSaveEdit}
+          onDelete={isAdmin ? handleDelete : undefined}
           onShowPhoto={(r) => {
             setShowPhoto(r);
           }}
@@ -499,14 +539,22 @@ export function RecordsView() {
               <DialogTitle>{showPhoto.controlNo}</DialogTitle>
             </DialogHeader>
             {showPhoto.photoPath ? (
-               
-              <img
-                src={showPhoto.photoPath}
-                alt={showPhoto.controlNo}
-                className="w-full rounded-md"
-              />
+              isImageFile(showPhoto.photoPath) ? (
+                <img src={showPhoto.photoPath} alt={showPhoto.controlNo} className="w-full rounded-md" />
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 rounded-md border border-slate-200 bg-slate-50 text-center">
+                  <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
+                    <FileText className="w-8 h-8 text-emerald-600" />
+                  </div>
+                  <div className="text-sm font-medium text-slate-900">{showPhoto.photoPath.split("/").pop()}</div>
+                  <div className="text-xs text-slate-500 mt-1">{showPhoto.photoPath.split(".").pop()?.toUpperCase()} file</div>
+                  <a href={showPhoto.photoPath} target="_blank" rel="noreferrer" className="mt-3 text-sm text-emerald-700 hover:underline flex items-center gap-1">
+                    <ExternalLink className="w-3 h-3" /> Open / Download file
+                  </a>
+                </div>
+              )
             ) : (
-              <div className="text-center py-8 text-slate-500">No photo attached.</div>
+              <div className="text-center py-8 text-slate-500">No file attached.</div>
             )}
           </DialogContent>
         </Dialog>
@@ -516,41 +564,56 @@ export function RecordsView() {
 }
 
 function SyncBadge({ record, onRetry }: { record: Record; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col gap-0.5 items-start">
+      <SheetSyncBadge record={record} onRetry={onRetry} />
+      <CalendarSyncBadge record={record} />
+    </div>
+  );
+}
+
+function SheetSyncBadge({ record, onRetry }: { record: Record; onRetry: () => void }) {
   if (record.syncStatus === "synced") {
-    return (
-      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
-        <CheckCircle2 className="w-2.5 h-2.5 mr-1" /> Synced
-      </Badge>
-    );
+    return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]"><CheckCircle2 className="w-2.5 h-2.5 mr-1" /> Sheet ✓</Badge>;
   }
   if (record.syncStatus === "failed") {
     return (
-      <button onClick={(e) => { e.stopPropagation(); onRetry(); }} title={record.syncError || "Sync failed - click to retry"}>
-        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[10px] cursor-pointer hover:bg-red-100">
-          <CloudOff className="w-2.5 h-2.5 mr-1" /> Failed
-        </Badge>
+      <button onClick={(e) => { e.stopPropagation(); onRetry(); }} title={record.syncError || "Sheet sync failed"}>
+        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[10px] cursor-pointer hover:bg-red-100"><CloudOff className="w-2.5 h-2.5 mr-1" /> Sheet ✗</Badge>
       </button>
     );
   }
-  return (
-    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[10px]">
-      <CloudUpload className="w-2.5 h-2.5 mr-1" /> Pending
-    </Badge>
-  );
+  return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[10px]"><CloudUpload className="w-2.5 h-2.5 mr-1" /> Sheet…</Badge>;
+}
+
+function CalendarSyncBadge({ record }: { record: Record }) {
+  if (record.calendarSyncStatus === "skipped") {
+    return <Badge variant="outline" className="bg-slate-50 text-slate-400 border-slate-200 text-[10px]" title="No target date or activity date"><CalendarIcon className="w-2.5 h-2.5 mr-1" /> Cal —</Badge>;
+  }
+  if (record.calendarSyncStatus === "synced") {
+    return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]" title={`Calendar synced${record.calendarSyncedAt ? ` at ${new Date(record.calendarSyncedAt).toLocaleString()}` : ""}`}><CalendarIcon className="w-2.5 h-2.5 mr-1" /> Cal ✓</Badge>;
+  }
+  if (record.calendarSyncStatus === "failed") {
+    return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[10px]" title={record.calendarSyncError || "Calendar sync failed"}><CloudOff className="w-2.5 h-2.5 mr-1" /> Cal ✗</Badge>;
+  }
+  return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[10px]"><CalendarIcon className="w-2.5 h-2.5 mr-1" /> Cal…</Badge>;
 }
 
 function EditRecordDialog({
   record,
   onClose,
   onSave,
+  onDelete,
   onShowPhoto,
 }: {
   record: Record;
   onClose: () => void;
   onSave: (r: Record) => void;
+  onDelete?: (r: Record) => void;
   onShowPhoto: (r: Record) => void;
 }) {
   const [form, setForm] = useState<Record>(record);
+  const [deleting, setDeleting] = useState(false);
   const update = (k: keyof Record, v: string | null) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
@@ -567,23 +630,47 @@ function EditRecordDialog({
               </Button>
             </div>
           )}
-          {/* Sync status banner */}
-          {form.syncStatus === "failed" && (
-            <div className="flex items-start gap-2 p-2 rounded-md bg-red-50 border border-red-200 text-xs text-red-700">
-              <CloudOff className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-              <div>
-                <div className="font-medium">Last Google Sheet sync failed</div>
-                <div className="opacity-80 truncate">{form.syncError || "Unknown error"}</div>
-                <div className="mt-0.5">Saving will retry the sync automatically.</div>
+          {/* Sync status banners */}
+          <div className="space-y-1">
+            {form.syncStatus === "failed" && (
+              <div className="flex items-start gap-2 p-2 rounded-md bg-red-50 border border-red-200 text-xs text-red-700">
+                <CloudOff className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <div className="font-medium">Google Sheet sync failed</div>
+                  <div className="opacity-80 truncate">{form.syncError || "Unknown error"}</div>
+                  <div className="mt-0.5">Saving will retry the sync automatically.</div>
+                </div>
               </div>
-            </div>
-          )}
-          {form.syncStatus === "synced" && form.sheetSyncedAt && (
-            <div className="flex items-center gap-1.5 text-[11px] text-emerald-700">
-              <CheckCircle2 className="w-3 h-3" />
-              Last synced to Google Sheet {new Date(form.sheetSyncedAt).toLocaleString()}
-            </div>
-          )}
+            )}
+            {form.syncStatus === "synced" && form.sheetSyncedAt && (
+              <div className="flex items-center gap-1.5 text-[11px] text-emerald-700">
+                <CheckCircle2 className="w-3 h-3" />
+                Google Sheet synced {new Date(form.sheetSyncedAt).toLocaleString()}
+              </div>
+            )}
+            {form.calendarSyncStatus === "failed" && (
+              <div className="flex items-start gap-2 p-2 rounded-md bg-red-50 border border-red-200 text-xs text-red-700">
+                <CloudOff className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <div className="font-medium">Google Calendar sync failed</div>
+                  <div className="opacity-80 truncate">{form.calendarSyncError || "Unknown error"}</div>
+                  <div className="mt-0.5">Saving will retry the sync automatically.</div>
+                </div>
+              </div>
+            )}
+            {form.calendarSyncStatus === "synced" && form.calendarSyncedAt && (
+              <div className="flex items-center gap-1.5 text-[11px] text-blue-700">
+                <CalendarIcon className="w-3 h-3" />
+                Google Calendar event synced {new Date(form.calendarSyncedAt).toLocaleString()}
+              </div>
+            )}
+            {form.calendarSyncStatus === "skipped" && (
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                <CalendarIcon className="w-3 h-3" />
+                No calendar event (no target date or activity date set)
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Date Received</Label>
@@ -685,11 +772,59 @@ function EditRecordDialog({
             <Input value={form.remarks || ""} onChange={(e) => update("remarks", e.target.value || null)} />
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button onClick={() => onSave(form)} className="bg-emerald-600 hover:bg-emerald-700">
-              <Save className="w-4 h-4 mr-1" /> Save Changes
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t">
+            {onDelete && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700">
+                    <Trash2 className="w-4 h-4 mr-1" /> Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this record?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      You are about to permanently delete <strong>{form.controlNo}</strong>
+                      {form.subject ? ` — "${form.subject}"` : ""}.
+                      <br /><br />
+                      This will remove:
+                      <ul className="list-disc ml-5 mt-1 space-y-0.5">
+                        <li>The record from the database</li>
+                        {form.photoPath && <li>The attached document photo</li>}
+                        <li>All sync logs for this record</li>
+                      </ul>
+                      <br />
+                      <strong>This action cannot be undone.</strong>
+                      <br /><br />
+                      <span className="text-xs text-slate-500">
+                        Note: This does NOT remove the row from your Google Sheet. You will need to delete it manually there if needed.
+                      </span>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-red-600 hover:bg-red-700"
+                      disabled={deleting}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        setDeleting(true);
+                        await onDelete(form);
+                        setDeleting(false);
+                      }}
+                    >
+                      {deleting ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Deleting…</> : <><Trash2 className="w-4 h-4 mr-1" /> Yes, delete permanently</>}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={() => onSave(form)} className="bg-emerald-600 hover:bg-emerald-700">
+                <Save className="w-4 h-4 mr-1" /> Save Changes
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

@@ -1,38 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { appendCommunicationRow, updateCommunicationRow, getSheetsConfig } from "@/lib/sheets";
+import { updateCommunicationRow, getSheetsConfig } from "@/lib/sheets";
+import { syncCalendarEvent, deleteCalendarEvent } from "@/lib/calendar";
+import fs from "fs/promises";
+import path from "path";
 
 export const runtime = "nodejs";
 
-// GET /api/communications/[id]
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { id } = await params;
   const record = await db.communication.findUnique({ where: { id } });
   if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ record });
 }
 
-// PATCH /api/communications/[id]
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { id } = await params;
   const existing = await db.communication.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json();
-
   const parseDate = (v: string | null | undefined): Date | null => {
     if (!v) return null;
     const d = new Date(v);
@@ -59,93 +51,93 @@ export async function PATCH(
 
   const record = await db.communication.update({ where: { id }, data });
 
-  // Sync the update to Google Sheets (find-and-update by control number).
-  // Non-fatal: if sync fails, the DB update is still preserved; we just
-  // mark syncStatus as "failed" so the user can retry from the Records view.
+  const warnings: string[] = [];
+  let finalRecord = record;
+
+  // Google Sheets sync
   const sheetsConfig = await getSheetsConfig();
   if (sheetsConfig) {
     try {
       await updateCommunicationRow(record.id);
-      const updated = await db.communication.update({
+      finalRecord = await db.communication.update({
         where: { id: record.id },
-        data: {
-          syncStatus: "synced",
-          sheetSyncedAt: new Date(),
-          syncError: null,
-        },
+        data: { syncStatus: "synced", sheetSyncedAt: new Date(), syncError: null },
       });
-      await db.syncLog.create({
-        data: { communicationId: record.id, status: "success" },
-      });
-      return NextResponse.json({ record: updated });
+      await db.syncLog.create({ data: { communicationId: record.id, status: "success" } });
     } catch (syncErr) {
       const errMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
-      const updated = await db.communication.update({
+      finalRecord = await db.communication.update({
         where: { id: record.id },
-        data: {
-          syncStatus: "failed",
-          syncError: errMsg,
-        },
+        data: { syncStatus: "failed", syncError: errMsg },
       });
-      await db.syncLog.create({
-        data: { communicationId: record.id, status: "failed", error: errMsg },
-      });
-      return NextResponse.json({
-        record: updated,
-        warning: `Saved to database, but Google Sheets sync failed: ${errMsg}. You can retry from the Records page.`,
-      });
+      await db.syncLog.create({ data: { communicationId: record.id, status: "failed", error: errMsg } });
+      warnings.push(`Google Sheets sync failed: ${errMsg}`);
     }
+  } else {
+    warnings.push("Google Sheets not configured — update saved locally only.");
   }
 
-  // Sheets not configured - just return the DB record
-  return NextResponse.json({
-    record,
-    warning: "Google Sheets not configured. Update saved locally only.",
-  });
+  // Google Calendar sync
+  try {
+    await syncCalendarEvent(record.id);
+    finalRecord = await db.communication.findUnique({ where: { id: record.id } }) || finalRecord;
+  } catch (calErr) {
+    const errMsg = calErr instanceof Error ? calErr.message : String(calErr);
+    await db.communication.update({
+      where: { id: record.id },
+      data: { calendarSyncStatus: "failed", calendarSyncError: errMsg },
+    });
+    finalRecord = await db.communication.findUnique({ where: { id: record.id } }) || finalRecord;
+    warnings.push(`Google Calendar sync failed: ${errMsg}`);
+  }
+
+  if (warnings.length > 0) {
+    return NextResponse.json({ record: finalRecord, warning: warnings.join(" | ") });
+  }
+  return NextResponse.json({ record: finalRecord });
 }
 
-// DELETE /api/communications/[id] - admin only
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// DELETE - admin only
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
+  const record = await db.communication.findUnique({ where: { id } });
+  if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Delete photo file
+  if (record.photoPath) {
+    try {
+      const filePath = path.join(process.cwd(), "public", record.photoPath);
+      await fs.unlink(filePath);
+    } catch {}
+  }
+
+  // Delete calendar event
+  try { await deleteCalendarEvent(id); } catch {}
+
+  await db.syncLog.deleteMany({ where: { communicationId: id } });
   await db.communication.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
 
-// POST /api/communications/[id] with action=retry-sync
-// Re-attempt Google Sheets sync
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// POST - retry sync
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { id } = await params;
   const existing = await db.communication.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {
-    // Use update (finds row by control no., updates if found, appends if not).
-    // This handles both "retry a failed create" and "retry a failed edit".
     await updateCommunicationRow(existing.id);
     const updated = await db.communication.update({
       where: { id },
-      data: {
-        syncStatus: "synced",
-        sheetSyncedAt: new Date(),
-        syncError: null,
-      },
+      data: { syncStatus: "synced", sheetSyncedAt: new Date(), syncError: null },
     });
-    await db.syncLog.create({
-      data: { communicationId: id, status: "success" },
-    });
+    await db.syncLog.create({ data: { communicationId: id, status: "success" } });
     return NextResponse.json({ record: updated });
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e);
@@ -153,9 +145,7 @@ export async function POST(
       where: { id },
       data: { syncStatus: "failed", syncError: errMsg },
     });
-    await db.syncLog.create({
-      data: { communicationId: id, status: "failed", error: errMsg },
-    });
+    await db.syncLog.create({ data: { communicationId: id, status: "failed", error: errMsg } });
     return NextResponse.json({ record: updated, error: errMsg }, { status: 500 });
   }
 }

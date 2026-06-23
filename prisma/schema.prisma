@@ -47,6 +47,11 @@ model Communication {
   sheetSyncedAt   DateTime?
   syncStatus      String   @default("pending") // pending, synced, failed
   syncError       String?
+  // Google Calendar sync info
+  calendarEventId String?  // Google Calendar event ID (null = not synced)
+  calendarSyncedAt DateTime?
+  calendarSyncStatus String @default("pending") // pending, synced, failed, skipped (no date)
+  calendarSyncError String?
   // Metadata
   createdById     String?
   createdBy       User?    @relation("CreatedBy", fields: [createdById], references: [id])

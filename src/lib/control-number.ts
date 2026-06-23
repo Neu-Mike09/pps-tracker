@@ -2,17 +2,31 @@ import { db } from "./db";
 import { SECTION_CODE } from "./constants";
 
 /**
- * Generate the next control number for the current year.
+ * Generate the next control number for the given year.
  * Format: PPS-YYYY-NNN (zero-padded to 3 digits, matching existing Excel format)
- * Uses DB transaction for safe multi-user concurrency.
+ *
+ * Uses the MAX sequence number from existing control numbers (not a count),
+ * so that deleted records don't cause collisions. If records 1,2,4 exist
+ * (3 was deleted), the next number is 5 — not 4 (which would collide).
  */
 export async function generateControlNumber(dateReceived: Date = new Date()): Promise<string> {
   const year = dateReceived.getFullYear();
-  // Count existing records for the year
-  const count = await db.communication.count({
+
+  // Fetch all control numbers for this year and find the max sequence
+  const records = await db.communication.findMany({
     where: { year },
+    select: { controlNo: true },
   });
-  const next = count + 1;
+
+  let maxSeq = 0;
+  for (const r of records) {
+    const parsed = parseControlNumber(r.controlNo);
+    if (parsed && parsed.seq > maxSeq) {
+      maxSeq = parsed.seq;
+    }
+  }
+
+  const next = maxSeq + 1;
   return `${SECTION_CODE}-${year}-${String(next).padStart(3, "0")}`;
 }
 

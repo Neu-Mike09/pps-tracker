@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Sheet,
+  Calendar as CalendarIcon,
   Users,
   Save,
   Loader2,
@@ -33,6 +34,8 @@ import {
   Shield,
   ShieldCheck,
   ExternalLink,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
@@ -62,6 +65,15 @@ export function SettingsView() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Calendar
+  const [calendarId, setCalendarId] = useState("primary");
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarSaving, setCalendarSaving] = useState(false);
+  const [calendarTesting, setCalendarTesting] = useState(false);
+  const [calendarTestResult, setCalendarTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [calendarResyncing, setCalendarResyncing] = useState(false);
+  const [calendarResyncResult, setCalendarResyncResult] = useState<{ total: number; success: number; failed: number; skipped: number; errors: Array<{ controlNo: string; error: string }> } | null>(null);
 
   // Users
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -122,9 +134,66 @@ export function SettingsView() {
     }
   };
 
+  const loadCalendarId = async () => {
+    setCalendarLoading(true);
+    try {
+      const res = await fetch("/api/calendar/test", { method: "POST" });
+      if (res.status === 401) { setCalendarId("primary"); return; }
+      const data = await res.json();
+      setCalendarId(data.calendarId || "primary");
+    } catch { setCalendarId("primary"); }
+    finally { setCalendarLoading(false); }
+  };
+
+  const handleSaveCalendarId = async () => {
+    setCalendarSaving(true);
+    try {
+      const res = await fetch("/api/calendar/test", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calendarId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Save failed");
+      toast({ title: "Calendar ID saved" });
+      setCalendarTestResult(null);
+    } catch (e) {
+      toast({ title: "Save failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally { setCalendarSaving(false); }
+  };
+
+  const handleTestCalendar = async () => {
+    setCalendarTesting(true);
+    setCalendarTestResult(null);
+    try {
+      const res = await fetch("/api/calendar/test", { method: "GET" });
+      const data = await res.json();
+      setCalendarTestResult(data);
+      if (data.ok) toast({ title: "Calendar connected", description: data.message });
+      else toast({ title: "Calendar connection failed", description: data.message, variant: "destructive" });
+    } catch (e) {
+      setCalendarTestResult({ ok: false, message: e instanceof Error ? e.message : String(e) });
+    } finally { setCalendarTesting(false); }
+  };
+
+  const handleResyncAll = async () => {
+    setCalendarResyncing(true);
+    setCalendarResyncResult(null);
+    try {
+      const res = await fetch("/api/calendar/resync-all", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Re-sync failed");
+      setCalendarResyncResult(data);
+      toast({ title: "Re-sync complete", description: `${data.success} synced, ${data.failed} failed, ${data.skipped} skipped (out of ${data.total}).` });
+    } catch (e) {
+      toast({ title: "Re-sync failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally { setCalendarResyncing(false); }
+  };
+
   useEffect(() => {
     loadSettings();
     loadUsers();
+    loadCalendarId();
   }, []);
 
   const handleSaveSettings = async () => {
@@ -376,6 +445,125 @@ export function SettingsView() {
               </li>
               <li>Copy the Spreadsheet ID from the Sheet URL and paste above.</li>
               <li>Click <strong>Save</strong> then <strong>Test Connection</strong>.</li>
+            </ol>
+          </details>
+        </CardContent>
+      </Card>
+
+      {/* Google Calendar */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarIcon className="w-4 h-4 text-emerald-600" />
+            Google Calendar Sync
+          </CardTitle>
+          <CardDescription>
+            Records with a Target Date or Activity Date automatically appear as events on your Google Calendar.
+            Uses the same Service Account as Google Sheets.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800">
+            <CalendarIcon className="w-4 h-4" />
+            <div>
+              Records are synced as calendar events:
+              <ul className="list-disc ml-4 mt-1 text-xs">
+                <li><strong>Activity Date/Time</strong> → timed event (1 hour)</li>
+                <li><strong>Target Date only</strong> → all-day event</li>
+                <li><strong>No dates</strong> → no calendar event (skipped)</li>
+              </ul>
+            </div>
+          </div>
+
+          {settings?.configured ? (
+            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-md text-sm text-emerald-800">
+              <CheckCircle2 className="w-4 h-4" />
+              Service Account is configured. Events will sync automatically.
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+              <XCircle className="w-4 h-4" />
+              Configure the Google Service Account in the Google Sheets section above first.
+            </div>
+          )}
+
+          {calendarId === "primary" && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-300 rounded-md text-sm text-amber-900">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-medium">⚠️ "primary" = the Service Account's own calendar</div>
+                <div className="mt-1 text-xs">
+                  Events created on the Service Account's primary calendar are <strong>invisible to you</strong>.
+                  To see events on YOUR calendar, share your personal Google Calendar with the Service Account email,
+                  then enter YOUR calendar ID (e.g., <code>yourname@gmail.com</code>) below.
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Calendar ID</Label>
+            <Input value={calendarId} onChange={(e) => setCalendarId(e.target.value)} placeholder="primary" disabled={calendarLoading} />
+            <p className="text-[11px] text-slate-500">
+              Use <code>primary</code> for the Service Account's own calendar, or paste your personal calendar ID
+              (e.g., <code>yourname@gmail.com</code>).
+            </p>
+          </div>
+
+          {calendarTestResult && (
+            <div className={`p-3 rounded-md text-sm ${calendarTestResult.ok ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-red-50 border border-red-200 text-red-800"}`}>
+              {calendarTestResult.ok ? <CheckCircle2 className="w-4 h-4 inline mr-2" /> : <XCircle className="w-4 h-4 inline mr-2" />}
+              {calendarTestResult.message}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={handleSaveCalendarId} disabled={calendarSaving} className="bg-emerald-600 hover:bg-emerald-700">
+              {calendarSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+              Save Calendar ID
+            </Button>
+            <Button variant="outline" onClick={handleTestCalendar} disabled={calendarTesting || !settings?.configured}>
+              {calendarTesting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CalendarIcon className="w-4 h-4 mr-1" />}
+              Test Calendar Connection
+            </Button>
+          </div>
+
+          {/* Re-sync all records */}
+          <div className="border-t border-slate-200 pt-4 mt-2">
+            <div className="text-sm font-medium text-slate-900 mb-1">Re-sync all records</div>
+            <div className="text-xs text-slate-500 mb-3">
+              Use this after changing the Calendar ID to push all existing records to the new calendar.
+            </div>
+            <Button variant="outline" onClick={handleResyncAll} disabled={calendarResyncing || !settings?.configured} className="border-blue-300 text-blue-700 hover:bg-blue-50">
+              {calendarResyncing ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Syncing…</> : <><RefreshCw className="w-4 h-4 mr-1" /> Re-sync All Records to Calendar</>}
+            </Button>
+            {calendarResyncResult && (
+              <div className={`mt-3 p-3 rounded-md text-sm ${calendarResyncResult.failed > 0 ? "bg-amber-50 border border-amber-200 text-amber-800" : "bg-emerald-50 border border-emerald-200 text-emerald-800"}`}>
+                <div className="font-medium">
+                  Re-sync complete: {calendarResyncResult.success} synced, {calendarResyncResult.failed} failed, {calendarResyncResult.skipped} skipped
+                </div>
+                {calendarResyncResult.errors.length > 0 && (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer text-xs">View {calendarResyncResult.errors.length} error(s)</summary>
+                    <ul className="list-disc ml-4 mt-1 text-xs space-y-0.5">
+                      {calendarResyncResult.errors.map((err, i) => (<li key={i}>{err.controlNo}: {err.error}</li>))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
+
+          <details className="text-sm">
+            <summary className="cursor-pointer text-emerald-700 hover:underline font-medium">
+              How do I set up Google Calendar sync?
+            </summary>
+            <ol className="list-decimal ml-5 mt-2 space-y-1 text-xs text-slate-600">
+              <li>In <strong>Google Cloud Console</strong> (same project as Sheets), enable the <strong>Google Calendar API</strong>.</li>
+              <li>Open <a href="https://calendar.google.com" target="_blank" rel="noreferrer" className="text-emerald-700 underline inline-flex items-center gap-0.5">Google Calendar <ExternalLink className="w-3 h-3" /></a> → find your calendar → three dots → <strong>Settings and sharing</strong>.</li>
+              <li>Scroll to <strong>Share with specific people</strong> → paste your Service Account email → give it <strong>Make changes to events</strong> permission.</li>
+              <li>Scroll to <strong>Integrate calendar</strong> → copy the <strong>Calendar ID</strong>.</li>
+              <li>Paste the Calendar ID above → <strong>Save</strong> → <strong>Test</strong> → <strong>Re-sync All Records</strong>.</li>
             </ol>
           </details>
         </CardContent>
