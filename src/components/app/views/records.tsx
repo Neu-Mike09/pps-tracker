@@ -66,6 +66,7 @@ interface Record {
   id: string;
   controlNo: string;
   dateReceived: string;
+  timeReceived: string | null;
   dateOfDocument: string | null;
   documentType: string | null;
   fromOffice: string | null;
@@ -220,6 +221,7 @@ export function RecordsView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dateReceived: updated.dateReceived,
+          timeReceived: updated.timeReceived,
           dateOfDocument: updated.dateOfDocument,
           documentType: updated.documentType,
           fromOffice: updated.fromOffice,
@@ -405,7 +407,10 @@ export function RecordsView() {
                               </Badge>
                             )}
                           </td>
-                          <td className="p-3 text-xs">{fmtDate(r.dateReceived)}</td>
+                          <td className="p-3 text-xs">
+                            <div>{fmtDate(r.dateReceived)}</div>
+                            {r.timeReceived && <div className="text-[10px] text-slate-500">{r.timeReceived}</div>}
+                          </td>
                           <td className="p-3 text-xs max-w-[180px] truncate" title={r.fromOffice || ""}>
                             {r.fromOffice || "-"}
                           </td>
@@ -484,7 +489,7 @@ export function RecordsView() {
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
                       <div>
-                        Recv: {fmtDate(r.dateReceived)}
+                        Recv: {fmtDate(r.dateReceived)}{r.timeReceived ? ` ${r.timeReceived}` : ""}
                         {r.assignedTo && <> • {r.assignedTo}</>}
                       </div>
                       <div className={isOverdue ? "text-red-600 font-semibold" : ""}>
@@ -671,10 +676,14 @@ function EditRecordDialog({
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Date Received</Label>
               <Input type="date" value={form.dateReceived?.slice(0, 10) || ""} onChange={(e) => update("dateReceived", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Time Received</Label>
+              <Input type="time" value={form.timeReceived || ""} onChange={(e) => update("timeReceived", e.target.value || null)} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Date of Document</Label>

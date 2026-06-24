@@ -27,6 +27,7 @@ model Communication {
   id              String   @id @default(cuid())
   controlNo       String   @unique
   dateReceived    DateTime
+  timeReceived    String?  // HH:MM format (time the document was received)
   dateOfDocument  DateTime?
   documentType    String?  // Letter, Memorandum, Email, Indorsement, Invitation, Order, Resolution, Report, Others
   fromOffice      String?

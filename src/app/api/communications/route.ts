@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
 
     const recordData = {
       dateReceived,
+      timeReceived: body.timeReceived || null,
       dateOfDocument: parseDate(body.dateOfDocument),
       documentType: body.documentType || null,
       fromOffice: body.fromOffice || null,

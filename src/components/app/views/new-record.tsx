@@ -54,6 +54,7 @@ interface FormState {
   photoPath: string | null;
   photoPreview: string | null;
   dateReceived: string;
+  timeReceived: string | null;
   dateOfDocument: string | null;
   documentType: string | null;
   fromOffice: string | null;
@@ -130,6 +131,7 @@ export function NewRecordView() {
     photoPath: null,
     photoPreview: null,
     dateReceived: todayStr(),
+    timeReceived: null,
     dateOfDocument: null,
     documentType: null,
     fromOffice: null,
@@ -233,6 +235,7 @@ export function NewRecordView() {
 
       setForm({
         photoPath: null, photoPreview: null, dateReceived: todayStr(),
+        timeReceived: null,
         dateOfDocument: null, documentType: null, fromOffice: null,
         subject: null, referenceNo: null, assignedTo: null,
         targetDate: null, dateCompleted: null, status: "Pending",
@@ -259,6 +262,7 @@ export function NewRecordView() {
   const handleReset = () => {
     setForm({
       photoPath: null, photoPreview: null, dateReceived: todayStr(),
+      timeReceived: null,
       dateOfDocument: null, documentType: null, fromOffice: null,
       subject: null, referenceNo: null, assignedTo: null,
       targetDate: null, dateCompleted: null, status: "Pending",
@@ -474,9 +478,14 @@ export function NewRecordView() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Field label="Date Received" required>
-                  <Input type="date" value={form.dateReceived} onChange={(e) => update("dateReceived", e.target.value)} />
-                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Date Received" required>
+                    <Input type="date" value={form.dateReceived} onChange={(e) => update("dateReceived", e.target.value)} />
+                  </Field>
+                  <Field label="Time Received">
+                    <Input type="time" value={form.timeReceived || ""} onChange={(e) => update("timeReceived", e.target.value || null)} />
+                  </Field>
+                </div>
                 <Field label="Document Type">
                   <Select value={form.documentType || ""} onValueChange={(v) => update("documentType", v)}>
                     <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>

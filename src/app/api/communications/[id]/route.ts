@@ -34,6 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
    
   const data: any = {};
   if (body.dateReceived !== undefined) data.dateReceived = parseDate(body.dateReceived) || existing.dateReceived;
+  if (body.timeReceived !== undefined) data.timeReceived = body.timeReceived || null;
   if (body.dateOfDocument !== undefined) data.dateOfDocument = parseDate(body.dateOfDocument);
   if (body.documentType !== undefined) data.documentType = body.documentType;
   if (body.fromOffice !== undefined) data.fromOffice = body.fromOffice;

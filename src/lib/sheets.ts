@@ -87,12 +87,13 @@ export async function ensureSheetHeaders() {
   // Try to read existing header row
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: config.spreadsheetId,
-    range: `${config.sheetName}!A4:N4`,
+    range: `${config.sheetName}!A4:O4`,
   });
 
   const headers = [
     "Control No.",
     "Date Received",
+    "Time",
     "Date of Document",
     "Document Type",
     "From (Office/Person)",
@@ -217,10 +218,10 @@ export async function updateCommunicationRow(communicationId: string) {
     return { action: "appended" as const, rowNumber: nextRow };
   }
 
-  // Update the existing row (columns A through N)
+  // Update the existing row (columns A through O — 15 columns including Time)
   await sheets.spreadsheets.values.update({
     spreadsheetId: config.spreadsheetId,
-    range: `${config.sheetName}!A${targetRowNumber}:N${targetRowNumber}`,
+    range: `${config.sheetName}!A${targetRowNumber}:O${targetRowNumber}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
@@ -229,12 +230,16 @@ export async function updateCommunicationRow(communicationId: string) {
 }
 
 /**
- * Helper: convert a Communication record to a row array (14 columns A-N)
- * matching the Sheet header order.
+ * Helper: convert a Communication record to a row array (15 columns A-O)
+ * matching the Sheet header order:
+ * A=ControlNo, B=DateReceived, C=Time, D=DateOfDocument, E=DocType,
+ * F=From, G=Subject, H=RefNo, I=AssignedTo, J=TargetDate, K=DateCompleted,
+ * L=Status, M=ActivityCategory, N=Remarks, O=Year
  */
 function buildRow(comm: {
   controlNo: string;
   dateReceived: Date;
+  timeReceived: string | null;
   dateOfDocument: Date | null;
   documentType: string | null;
   fromOffice: string | null;
@@ -253,20 +258,21 @@ function buildRow(comm: {
     return d.toISOString().slice(0, 10); // YYYY-MM-DD
   };
   return [
-    comm.controlNo,
-    formatDate(comm.dateReceived),
-    formatDate(comm.dateOfDocument),
-    comm.documentType || "",
-    comm.fromOffice || "",
-    comm.subject || "",
-    comm.referenceNo || "",
-    comm.assignedTo || "",
-    formatDate(comm.targetDate),
-    formatDate(comm.dateCompleted),
-    comm.status || "",
-    comm.activityCategory || "",
-    comm.remarks || "",
-    String(comm.year),
+    comm.controlNo,           // A
+    formatDate(comm.dateReceived), // B
+    comm.timeReceived || "",  // C — Time received (HH:MM)
+    formatDate(comm.dateOfDocument), // D
+    comm.documentType || "",  // E
+    comm.fromOffice || "",    // F
+    comm.subject || "",       // G
+    comm.referenceNo || "",   // H
+    comm.assignedTo || "",    // I
+    formatDate(comm.targetDate), // J
+    formatDate(comm.dateCompleted), // K
+    comm.status || "",        // L
+    comm.activityCategory || "", // M
+    comm.remarks || "",       // N
+    String(comm.year),        // O
   ];
 }
 
