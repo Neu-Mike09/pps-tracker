@@ -47,6 +47,8 @@ interface ExtractedData {
   referenceNo: string | null;
   activityCategorySuggestion: string | null;
   activityDateTimeSuggestion: string | null;
+  targetDateSuggestion: string | null;
+  prioritySuggestion: string | null;
   rawText: string;
 }
 
@@ -71,6 +73,11 @@ interface FormState {
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
+const nowTimeStr = () => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 async function safeJsonResponse(res: Response): Promise<Record<string, unknown>> {
   const contentType = res.headers.get("content-type") || "";
@@ -185,6 +192,7 @@ export function NewRecordView() {
         ...f,
         photoPath,
         photoPreview: previewUrl,
+        timeReceived: nowTimeStr(),
         dateOfDocument: toLocalDate(ext2.dateOfDocument),
         documentType: ext2.documentType,
         fromOffice: ext2.fromOffice,
@@ -192,6 +200,8 @@ export function NewRecordView() {
         referenceNo: ext2.referenceNo,
         activityCategory: ext2.activityCategorySuggestion,
         activityDateTime: toLocalDateTime(ext2.activityDateTimeSuggestion),
+        targetDate: toLocalDate(ext2.targetDateSuggestion),
+        priority: ext2.prioritySuggestion || "Normal",
       }));
 
       toast({ title: "Extraction complete", description: "Please review the extracted fields before saving." });
