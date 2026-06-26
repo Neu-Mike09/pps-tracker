@@ -1,5 +1,11 @@
-import { google } from "googleapis";
 import { db } from "./db";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let gLoaded: any = null;
+async function getGoogle() {
+  if (!gLoaded) { const mod = await import("googleapis"); gLoaded = mod.google || mod.default || mod; }
+  return gLoaded;
+}
 
 /**
  * Get Google Sheets config from Settings table.
@@ -59,8 +65,9 @@ export async function saveSheetsConfig(config: {
   }
 }
 
-function getAuthClient(config: Awaited<ReturnType<typeof getSheetsConfig>>) {
+async function getAuthClient(config: Awaited<ReturnType<typeof getSheetsConfig>>) {
   if (!config) throw new Error("Google Sheets not configured");
+  const google = await getGoogle();
   return new google.auth.JWT({
     email: config.clientEmail,
     key: config.privateKey,
@@ -81,7 +88,8 @@ export async function ensureSheetHeaders() {
   const config = await getSheetsConfig();
   if (!config) throw new Error("Google Sheets not configured");
 
-  const auth = getAuthClient(config);
+  const auth = await getAuthClient(config);
+  const google = await getGoogle();
   const sheets = google.sheets({ version: "v4", auth });
 
   // Try to read existing header row
@@ -137,7 +145,8 @@ export async function appendCommunicationRow(communicationId: string) {
   const config = await getSheetsConfig();
   if (!config) throw new Error("Google Sheets not configured. Add credentials in Settings.");
 
-  const auth = getAuthClient(config);
+  const auth = await getAuthClient(config);
+  const google = await getGoogle();
   const sheets = google.sheets({ version: "v4", auth });
 
   const comm = await db.communication.findUnique({
@@ -176,7 +185,8 @@ export async function updateCommunicationRow(communicationId: string) {
   const config = await getSheetsConfig();
   if (!config) throw new Error("Google Sheets not configured. Add credentials in Settings.");
 
-  const auth = getAuthClient(config);
+  const auth = await getAuthClient(config);
+  const google = await getGoogle();
   const sheets = google.sheets({ version: "v4", auth });
 
   const comm = await db.communication.findUnique({
@@ -310,7 +320,8 @@ export async function testSheetsConnection() {
     if (!config) {
       return { ok: false, message: "Not configured. Please provide all required fields." };
     }
-    const auth = getAuthClient(config);
+    const auth = await getAuthClient(config);
+    const google = await getGoogle();
     const sheets = google.sheets({ version: "v4", auth });
 
     // Try to get spreadsheet metadata

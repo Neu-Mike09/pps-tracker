@@ -1,12 +1,10 @@
-// DA RFO 5 - PPS Communications Tracker
-// Prisma schema
-
+// DA RFO 5 - PPS Communications Tracker — PostgreSQL
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -15,52 +13,45 @@ model User {
   username     String   @unique
   name         String
   passwordHash String
-  role         String   @default("staff") // "admin" | "staff"
+  role         String   @default("staff")
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
   createdCommunications Communication[] @relation("CreatedBy")
 }
 
 model Communication {
-  id              String   @id @default(cuid())
-  controlNo       String   @unique
-  dateReceived    DateTime
-  timeReceived    String?  // HH:MM format (time the document was received)
-  dateOfDocument  DateTime?
-  documentType    String?  // Letter, Memorandum, Email, Indorsement, Invitation, Order, Resolution, Report, Others
-  fromOffice      String?
-  subject         String?
-  referenceNo     String?
-  assignedTo      String?  // staff name
-  targetDate      DateTime?
-  dateCompleted   DateTime?
-  status          String?  // Pending, In Progress, For Compliance, Accomplished, Attended, Forwarded, Cancelled, Deferred, For Filing
-  activityCategory String? // Coordination, Reporting, Planning, Monitoring, Evaluation, Training/Seminar, Meeting, Field Activity, Others
-  remarks         String?
-  year            Int
-  // New fields (added per user request)
-  priority        String?  // Urgent, High, Normal, Low
+  id               String   @id @default(cuid())
+  controlNo        String   @unique
+  dateReceived     DateTime
+  timeReceived     String?
+  dateOfDocument   DateTime?
+  documentType     String?
+  fromOffice       String?
+  subject          String?
+  referenceNo      String?
+  assignedTo       String?
+  targetDate       DateTime?
+  dateCompleted    DateTime?
+  status           String?
+  activityCategory String?
+  remarks          String?
+  year             Int
+  priority         String?
   activityDateTime DateTime?
-  photoPath       String?  // relative URL path to stored photo (e.g. /uploads/PPS-2026-001.jpg)
-  // Sync info
-  sheetSyncedAt   DateTime?
-  syncStatus      String   @default("pending") // pending, synced, failed
-  syncError       String?
-  // Google Calendar sync info
-  calendarEventId String?  // Google Calendar event ID (null = not synced)
+  photoPath        String?
+  sheetSyncedAt    DateTime?
+  syncStatus       String   @default("pending")
+  syncError        String?
+  calendarEventId  String?
   calendarSyncedAt DateTime?
-  calendarSyncStatus String @default("pending") // pending, synced, failed, skipped (no date)
+  calendarSyncStatus String @default("pending")
   calendarSyncError String?
-  // Metadata
-  createdById     String?
-  createdBy       User?    @relation("CreatedBy", fields: [createdById], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  syncLogs        SyncLog[]
-
+  createdById      String?
+  createdBy        User?    @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  syncLogs         SyncLog[]
   @@index([year])
   @@index([status])
   @@index([assignedTo])
@@ -72,7 +63,7 @@ model SyncLog {
   id              String   @id @default(cuid())
   communicationId String
   communication   Communication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
-  status          String   // success, failed
+  status          String
   error           String?
   timestamp       DateTime @default(now())
 }
@@ -81,4 +72,13 @@ model Setting {
   id    String @id @default(cuid())
   key   String @unique
   value String
+}
+
+model UploadedFile {
+  id        String   @id @default(cuid())
+  filename  String
+  mimeType  String
+  data      Bytes
+  size      Int
+  createdAt DateTime @default(now())
 }

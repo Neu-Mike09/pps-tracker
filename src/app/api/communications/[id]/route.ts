@@ -3,8 +3,6 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { updateCommunicationRow, getSheetsConfig } from "@/lib/sheets";
 import { syncCalendarEvent, deleteCalendarEvent } from "@/lib/calendar";
-import fs from "fs/promises";
-import path from "path";
 
 export const runtime = "nodejs";
 
@@ -108,12 +106,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const record = await db.communication.findUnique({ where: { id } });
   if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Delete photo file
+  // Delete uploaded file from database
   if (record.photoPath) {
-    try {
-      const filePath = path.join(process.cwd(), "public", record.photoPath);
-      await fs.unlink(filePath);
-    } catch {}
+    const fileIdMatch = record.photoPath.match(/\/api\/files\/(.+)$/);
+    if (fileIdMatch) { try { await db.uploadedFile.delete({ where: { id: fileIdMatch[1] } }); } catch {} }
   }
 
   // Delete calendar event

@@ -137,7 +137,7 @@ export function SettingsView() {
   const loadCalendarId = async () => {
     setCalendarLoading(true);
     try {
-      const res = await fetch("/api/calendar/test", { method: "POST" });
+      const res = await fetch("/api/calendar-test", { method: "POST" });
       if (res.status === 401) { setCalendarId("primary"); return; }
       const data = await res.json();
       setCalendarId(data.calendarId || "primary");
@@ -148,7 +148,7 @@ export function SettingsView() {
   const handleSaveCalendarId = async () => {
     setCalendarSaving(true);
     try {
-      const res = await fetch("/api/calendar/test", {
+      const res = await fetch("/api/calendar-test", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calendarId }),
@@ -166,7 +166,7 @@ export function SettingsView() {
     setCalendarTesting(true);
     setCalendarTestResult(null);
     try {
-      const res = await fetch("/api/calendar/test", { method: "GET" });
+      const res = await fetch("/api/calendar-test", { method: "GET" });
       const data = await res.json();
       setCalendarTestResult(data);
       if (data.ok) toast({ title: "Calendar connected", description: data.message });
@@ -180,7 +180,7 @@ export function SettingsView() {
     setCalendarResyncing(true);
     setCalendarResyncResult(null);
     try {
-      const res = await fetch("/api/calendar/resync-all", { method: "POST" });
+      const res = await fetch("/api/calendar-resync", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Re-sync failed");
       setCalendarResyncResult(data);

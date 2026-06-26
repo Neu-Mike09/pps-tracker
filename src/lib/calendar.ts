@@ -1,5 +1,11 @@
-import { google } from "googleapis";
 import { db } from "./db";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let gLoaded: any = null;
+async function getGoogleapis() {
+  if (!gLoaded) { const mod = await import("googleapis"); gLoaded = mod.google || mod.default || mod; }
+  return gLoaded;
+}
 import { getSheetsConfig, getCalendarId } from "./sheets";
 
 /**
