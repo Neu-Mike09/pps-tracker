@@ -16,6 +16,7 @@ async function getCalendarClient() {
   const config = await getSheetsConfig();
   if (!config) throw new Error("Google Service Account not configured. Add credentials in Settings.");
 
+  const google = await getGoogleapis();
   const auth = new google.auth.JWT({
     email: config.clientEmail,
     key: config.privateKey,
