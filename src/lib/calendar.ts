@@ -225,6 +225,7 @@ export async function testCalendarConnection(): Promise<{ ok: boolean; message: 
       return { ok: false, message: "Google Service Account not configured. Configure it in the Google Sheets section first." };
     }
 
+    const google = await getGoogleapis();
     const auth = new google.auth.JWT({
       email: config.clientEmail,
       key: config.privateKey,
