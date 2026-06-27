@@ -40,7 +40,12 @@ export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fil
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    // Use gemini-1.5-flash which has a more generous free tier (15 req/min, 1500/day)
+    // gemini-2.0-flash has limit: 0 on some projects
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      generationConfig: { responseMimeType: "application/json" },
+    });
     const ext = fileName?.split(".").pop()?.toLowerCase() || "";
     const isImage = mimeType.startsWith("image/");
     const isPdf = mimeType === "application/pdf" || ext === "pdf";
