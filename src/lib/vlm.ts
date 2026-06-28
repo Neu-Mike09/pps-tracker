@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { DOCUMENT_TYPES, ACTIVITY_CATEGORIES, PRIORITIES } from "./constants";
+import { DOCUMENT_TYPES, PRIORITIES } from "./constants";
+import { getAllOptions } from "./options";
 
 export interface ExtractedData {
   documentType: string | null;
@@ -14,7 +15,17 @@ export interface ExtractedData {
   rawText: string;
 }
 
-const EXTRACTION_PROMPT = `You are an expert assistant for the DA RFO 5 Planning and Programming Section. Extract fields from this government communication and return STRICT JSON only.
+function getEmptyResult(rawText: string): ExtractedData {
+  return { documentType: null, dateOfDocument: null, fromOffice: null, subject: null, referenceNo: null, activityCategorySuggestion: null, activityDateTimeSuggestion: null, targetDateSuggestion: null, prioritySuggestion: null, rawText };
+}
+
+/**
+ * Build the extraction prompt using dynamic options from the database.
+ * This way, if the admin adds/removes options, the AI uses the updated list.
+ */
+async function buildPrompt(): Promise<string> {
+  const opts = await getAllOptions();
+  return `You are an expert assistant for the DA RFO 5 Planning and Programming Section. Extract fields from this government communication and return STRICT JSON only.
 
 Fields:
 1. "documentType" — one of: ${DOCUMENT_TYPES.map((t) => `"${t}"`).join(", ")}
@@ -22,16 +33,13 @@ Fields:
 3. "fromOffice" — sender office/person
 4. "subject" — subject line or title
 5. "referenceNo" — reference number or null
-6. "activityCategorySuggestion" — one of: ${ACTIVITY_CATEGORIES.map((c) => `"${c}"`).join(", ")}
+6. "activityCategorySuggestion" — one of: ${opts.activityCategory.map((c) => `"${c}"`).join(", ")}
 7. "activityDateTimeSuggestion" — meeting/event date in YYYY-MM-DDTHH:MM:00 or YYYY-MM-DD or null
 8. "targetDateSuggestion" — deadline date YYYY-MM-DD or null. Look for: "no later than", "deadline for submission", "on or before", "due on"
 9. "prioritySuggestion" — one of: ${PRIORITIES.map((p) => `"${p}"`).join(", ")}. Urgent if URGENT/IMMEDIATE, High if deadline within 2 weeks, Normal default
 10. "rawText" — full text transcript
 
 Return ONLY valid JSON, no markdown.`;
-
-function getEmptyResult(rawText: string): ExtractedData {
-  return { documentType: null, dateOfDocument: null, fromOffice: null, subject: null, referenceNo: null, activityCategorySuggestion: null, activityDateTimeSuggestion: null, targetDateSuggestion: null, prioritySuggestion: null, rawText };
 }
 
 export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fileName?: string): Promise<ExtractedData> {
@@ -48,17 +56,18 @@ export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fil
     const ext = fileName?.split(".").pop()?.toLowerCase() || "";
     const isImage = mimeType.startsWith("image/");
     const isPdf = mimeType === "application/pdf" || ext === "pdf";
+    const prompt = await buildPrompt();
     let result;
 
     if (isImage || isPdf) {
       result = await model.generateContent([
-        EXTRACTION_PROMPT,
+        prompt,
         { inlineData: { mimeType: isPdf ? "application/pdf" : mimeType, data: fileBuffer.toString("base64") } },
       ]);
     } else {
       let textContent = "";
       try { textContent = fileBuffer.toString("utf-8"); } catch { return getEmptyResult("(Could not extract text. Please fill manually.)"); }
-      result = await model.generateContent([`${EXTRACTION_PROMPT}\n\n---\n${textContent.slice(0, 15000)}\n---`]);
+      result = await model.generateContent([`${prompt}\n\n---\n${textContent.slice(0, 15000)}\n---`]);
     }
 
     const content = result.response.text();

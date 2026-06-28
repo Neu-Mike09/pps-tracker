@@ -24,6 +24,7 @@ import {
   Sheet,
   Calendar as CalendarIcon,
   Users,
+  Settings,
   Save,
   Loader2,
   CheckCircle2,
@@ -80,6 +81,10 @@ export function SettingsView() {
   const [usersLoading, setUsersLoading] = useState(true);
   const [showUserDialog, setShowUserDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+
+  // Dropdown options
+  const [dropdownOptions, setDropdownOptions] = useState<{ assignedTo: string[]; status: string[]; activityCategory: string[]; sender: string[] }>({ assignedTo: [], status: [], activityCategory: [], sender: [] });
+  const [optionsLoading, setOptionsLoading] = useState(true);
 
   const loadSettings = async () => {
     setLoading(true);
@@ -190,10 +195,47 @@ export function SettingsView() {
     } finally { setCalendarResyncing(false); }
   };
 
+  const loadOptions = async () => {
+    setOptionsLoading(true);
+    try {
+      const res = await fetch("/api/options");
+      if (res.ok) {
+        const data = await res.json();
+        setDropdownOptions(data);
+      }
+    } catch {}
+    finally { setOptionsLoading(false); }
+  };
+
+  const handleAddOption = async (category: string, value: string) => {
+    try {
+      const res = await fetch("/api/options", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category, value }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add option");
+      toast({ title: "Option added", description: `"${value}" added to ${category}` });
+      loadOptions();
+    } catch (e) {
+      toast({ title: "Failed to add option", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
+
+  const handleDeleteOption = async (category: string, value: string) => {
+    try {
+      const res = await fetch(`/api/options?category=${category}&value=${encodeURIComponent(value)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete option");
+      toast({ title: "Option removed", description: `"${value}" removed from ${category}` });
+      loadOptions();
+    } catch (e) {
+      toast({ title: "Failed to delete option", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
+
   useEffect(() => {
     loadSettings();
     loadUsers();
     loadCalendarId();
+    loadOptions();
   }, []);
 
   const handleSaveSettings = async () => {
@@ -569,6 +611,32 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
+      {/* Dropdown Options */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Settings className="w-4 h-4 text-emerald-600" />
+            Dropdown Options
+          </CardTitle>
+          <CardDescription>
+            Manage the options that appear in dropdown menus and that the AI uses for extraction.
+            Changes take effect immediately for new records.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {optionsLoading ? (
+            <div className="flex items-center justify-center py-4"><Loader2 className="w-6 h-6 text-emerald-600 animate-spin" /></div>
+          ) : (
+            <>
+              <OptionEditor label="Assigned To (Staff)" category="assignedTo" options={dropdownOptions.assignedTo} onAdd={handleAddOption} onDelete={handleDeleteOption} />
+              <OptionEditor label="Status" category="status" options={dropdownOptions.status} onAdd={handleAddOption} onDelete={handleDeleteOption} />
+              <OptionEditor label="Activity Category" category="activityCategory" options={dropdownOptions.activityCategory} onAdd={handleAddOption} onDelete={handleDeleteOption} />
+              <OptionEditor label="Common Senders (From)" category="sender" options={dropdownOptions.sender} onAdd={handleAddOption} onDelete={handleDeleteOption} />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Users */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -747,5 +815,62 @@ function UserDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function OptionEditor({ label, category, options, onAdd, onDelete }: {
+  label: string;
+  category: string;
+  options: string[];
+  onAdd: (category: string, value: string) => void;
+  onDelete: (category: string, value: string) => void;
+}) {
+  const [newOption, setNewOption] = useState("");
+  const { toast } = useToast();
+
+  const handleAdd = () => {
+    const val = newOption.trim();
+    if (!val) return;
+    if (options.some((o) => o.toLowerCase() === val.toLowerCase())) {
+      toast({ title: "Already exists", description: `"${val}" is already in this list`, variant: "destructive" });
+      return;
+    }
+    onAdd(category, val);
+    setNewOption("");
+  };
+
+  const handleDelete = (value: string) => {
+    if (confirm(`Remove "${value}" from ${label}?\n\nExisting records will keep this value, but new records won't be able to select it.`)) {
+      onDelete(category, value);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs font-medium text-slate-700">{label}</Label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((opt) => (
+          <div key={opt} className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-xs">
+            <span>{opt}</span>
+            <button onClick={() => handleDelete(opt)} className="text-slate-400 hover:text-red-600 ml-0.5" title={`Remove "${opt}"`}>
+              <XCircle className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+        {options.length === 0 && <span className="text-xs text-slate-400 italic">No options — add one below</span>}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={newOption}
+          onChange={(e) => setNewOption(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
+          placeholder={`Add new ${label.toLowerCase()}...`}
+          className="h-8 text-sm"
+        />
+        <Button size="sm" variant="outline" onClick={handleAdd} disabled={!newOption.trim()} className="h-8">
+          <Plus className="w-3 h-3 mr-1" /> Add
+        </Button>
+      </div>
+    </div>
   );
 }

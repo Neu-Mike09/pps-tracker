@@ -82,3 +82,16 @@ model UploadedFile {
   size      Int
   createdAt DateTime @default(now())
 }
+
+// Admin-manageable dropdown options
+// Categories: "assignedTo", "status", "activityCategory", "sender"
+model DropdownOption {
+  id        String   @id @default(cuid())
+  category  String   // "assignedTo" | "status" | "activityCategory" | "sender"
+  value     String   // the option text (e.g., "MJ", "Pending", "Meeting")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([category, value])
+  @@index([category])
+}
