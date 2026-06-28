@@ -32,11 +32,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   DOCUMENT_TYPES,
-  STATUSES,
-  ACTIVITY_CATEGORIES,
   PRIORITIES,
-  STAFF_NAMES,
-  COMMON_SENDERS,
 } from "@/lib/constants";
 
 interface ExtractedData {
@@ -133,6 +129,13 @@ export function NewRecordView() {
   const [isImageFile, setIsImageFile] = useState(true);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [mode, setMode] = useState<"upload" | "manual">("upload");
+  const [dropdownOptions, setDropdownOptions] = useState<{ assignedTo: string[]; status: string[]; activityCategory: string[]; sender: string[] }>({ assignedTo: [], status: [], activityCategory: [], sender: [] });
+
+  useEffect(() => {
+    fetch("/api/options").then(r => r.json()).then(data => {
+      if (data.assignedTo) setDropdownOptions(data);
+    }).catch(() => {});
+  }, []);
 
   const [form, setForm] = useState<FormState>({
     photoPath: null,
@@ -510,7 +513,7 @@ export function NewRecordView() {
                 <Field label="From (Office / Person)">
                   <Input list="sender-list" value={form.fromOffice || ""} onChange={(e) => update("fromOffice", e.target.value || null)} placeholder="e.g. DA Central Office - PMS" />
                   <datalist id="sender-list">
-                    {COMMON_SENDERS.map((s) => <option key={s} value={s} />)}
+                    {dropdownOptions.sender.map((s) => <option key={s} value={s} />)}
                   </datalist>
                 </Field>
                 <Field label="Subject / Title">
@@ -524,7 +527,7 @@ export function NewRecordView() {
                     <Select value={form.assignedTo || ""} onValueChange={(v) => update("assignedTo", v)}>
                       <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
                       <SelectContent>
-                        {STAFF_NAMES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -532,7 +535,7 @@ export function NewRecordView() {
                     <Select value={form.status || ""} onValueChange={(v) => update("status", v)}>
                       <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                       <SelectContent>
-                        {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -550,7 +553,7 @@ export function NewRecordView() {
                     <Select value={form.activityCategory || ""} onValueChange={(v) => update("activityCategory", v)}>
                       <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                       <SelectContent>
-                        {ACTIVITY_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        {dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </Field>

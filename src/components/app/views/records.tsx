@@ -51,14 +51,10 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  STATUSES,
   STATUS_COLORS,
-  ACTIVITY_CATEGORIES,
   PRIORITY_COLORS,
   DOCUMENT_TYPES,
   PRIORITIES,
-  STAFF_NAMES,
-  COMMON_SENDERS,
   TERMINAL_STATUSES,
 } from "@/lib/constants";
 
@@ -116,6 +112,13 @@ export function RecordsView() {
   const setEditId = useAppStore((s) => s.setEditId);
   const currentUser = useAppStore((s) => s.user);
   const isAdmin = currentUser?.role === "admin";
+  const [dropdownOptions, setDropdownOptions] = useState<{ assignedTo: string[]; status: string[]; activityCategory: string[]; sender: string[] }>({ assignedTo: [], status: [], activityCategory: [], sender: [] });
+
+  useEffect(() => {
+    fetch("/api/options").then(r => r.json()).then(data => {
+      if (data.assignedTo) setDropdownOptions(data);
+    }).catch(() => {});
+  }, []);
 
   const [records, setRecords] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
@@ -304,21 +307,21 @@ export function RecordsView() {
               <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
-                {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v === "all" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Assigned To" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All staff</SelectItem>
-                {STAFF_NAMES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
-                {ACTIVITY_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                {dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -704,7 +707,7 @@ function EditRecordDialog({
               <Label className="text-xs">From (Office)</Label>
               <Input list="sender-list2" value={form.fromOffice || ""} onChange={(e) => update("fromOffice", e.target.value || null)} />
               <datalist id="sender-list2">
-                {COMMON_SENDERS.map((s) => <option key={s} value={s} />)}
+                {dropdownOptions.sender.map((s) => <option key={s} value={s} />)}
               </datalist>
             </div>
           </div>
@@ -722,7 +725,7 @@ function EditRecordDialog({
               <Select value={form.assignedTo || ""} onValueChange={(v) => update("assignedTo", v)}>
                 <SelectTrigger><SelectValue placeholder="Staff" /></SelectTrigger>
                 <SelectContent>
-                  {STAFF_NAMES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -731,7 +734,7 @@ function EditRecordDialog({
               <Select value={form.status || ""} onValueChange={(v) => update("status", v)}>
                 <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
-                  {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -751,7 +754,7 @@ function EditRecordDialog({
               <Select value={form.activityCategory || ""} onValueChange={(v) => update("activityCategory", v)}>
                 <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
                 <SelectContent>
-                  {ACTIVITY_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
