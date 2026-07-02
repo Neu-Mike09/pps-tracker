@@ -49,6 +49,7 @@ import {
   FileText,
   ExternalLink,
   Sparkles,
+  RotateCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -673,16 +674,30 @@ function EditRecordDialog({
           {/* AI Document Summary */}
           {form.photoPath && (
             <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                <span className="text-xs font-medium text-blue-800">AI Document Summary</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="text-xs font-medium text-blue-800">AI Document Summary</span>
+                </div>
+                {summary && !summaryLoading && (
+                  <button onClick={() => { setSummary(null); setSummaryError(null); setSummaryLoading(true); fetch("/api/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photoPath: form.photoPath }) }).then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error); setSummary(data.summary); }).catch((e) => setSummaryError(e instanceof Error ? e.message : String(e))).finally(() => setSummaryLoading(false)); }} className="text-[10px] text-blue-600 hover:underline">
+                    Regenerate
+                  </button>
+                )}
               </div>
               {summaryLoading ? (
                 <div className="flex items-center gap-2 text-xs text-blue-700">
                   <Loader2 className="w-3 h-3 animate-spin" /> Generating summary...
                 </div>
               ) : summaryError ? (
-                <div className="text-xs text-red-600">{summaryError}</div>
+                <div className="space-y-1.5">
+                  <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-1.5">
+                    Could not generate summary (AI rate limit or connection issue). You can still view and edit the record.
+                  </div>
+                  <button onClick={() => { setSummaryError(null); setSummaryLoading(true); fetch("/api/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photoPath: form.photoPath }) }).then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error); setSummary(data.summary); }).catch((e) => setSummaryError(e instanceof Error ? e.message : String(e))).finally(() => setSummaryLoading(false)); }} className="text-[10px] text-blue-600 hover:underline flex items-center gap-1">
+                    <RotateCw className="w-2.5 h-2.5" /> Retry summary
+                  </button>
+                </div>
               ) : summary ? (
                 <p className="text-xs text-slate-700 leading-relaxed">{summary}</p>
               ) : null}
