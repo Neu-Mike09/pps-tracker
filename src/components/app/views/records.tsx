@@ -536,6 +536,7 @@ export function RecordsView() {
           onShowPhoto={(r) => {
             setShowPhoto(r);
           }}
+          dropdownOptions={dropdownOptions}
         />
       )}
 
@@ -613,12 +614,14 @@ function EditRecordDialog({
   onSave,
   onDelete,
   onShowPhoto,
+  dropdownOptions,
 }: {
   record: Record;
   onClose: () => void;
   onSave: (r: Record) => void;
   onDelete?: (r: Record) => void;
   onShowPhoto: (r: Record) => void;
+  dropdownOptions: { assignedTo: string[]; status: string[]; activityCategory: string[]; sender: string[] };
 }) {
   const [form, setForm] = useState<Record>(record);
   const [deleting, setDeleting] = useState(false);
