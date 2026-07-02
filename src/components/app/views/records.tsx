@@ -48,6 +48,7 @@ import {
   Calendar as CalendarIcon,
   FileText,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -625,7 +626,35 @@ function EditRecordDialog({
 }) {
   const [form, setForm] = useState<Record>(record);
   const [deleting, setDeleting] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const update = (k: keyof Record, v: string | null) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Auto-generate summary when dialog opens (if document exists)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchSummary = async () => {
+      if (!form.photoPath) return;
+      try {
+        setSummaryLoading(true);
+        const res = await fetch("/api/summarize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photoPath: form.photoPath }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to generate summary");
+        if (!cancelled) setSummary(data.summary);
+      } catch (e) {
+        if (!cancelled) setSummaryError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setSummaryLoading(false);
+      }
+    };
+    fetchSummary();
+    return () => { cancelled = true; };
+  }, []); // Run once when dialog opens
 
   return (
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
@@ -639,6 +668,29 @@ function EditRecordDialog({
               <Button variant="outline" size="sm" onClick={() => onShowPhoto(form)}>
                 <ImageIcon className="w-3 h-3 mr-1" /> View Document Photo
               </Button>
+            </div>
+          )}
+          {/* AI Document Summary */}
+          {form.photoPath && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <span className="text-xs font-medium text-blue-800">AI Document Summary</span>
+              </div>
+              {summaryLoading ? (
+                <div className="flex items-center gap-2 text-xs text-blue-700">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Generating summary...
+                </div>
+              ) : summaryError ? (
+                <div className="text-xs text-red-600">{summaryError}</div>
+              ) : summary ? (
+                <p className="text-xs text-slate-700 leading-relaxed">{summary}</p>
+              ) : null}
+            </div>
+          )}
+          {!form.photoPath && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-500 text-center">
+              No document uploaded — summary not available for this record.
             </div>
           )}
           {/* Sync status banners */}
