@@ -307,21 +307,21 @@ export function RecordsView() {
               <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
-                {(form.status && !dropdownOptions.status.includes(form.status) ? [<SelectItem key={form.status} value={form.status}>{form.status}</SelectItem>] : []).concat(dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
+                {dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v === "all" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Assigned To" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All staff</SelectItem>
-                {(form.assignedTo && !dropdownOptions.assignedTo.includes(form.assignedTo) ? [<SelectItem key={form.assignedTo} value={form.assignedTo}>{form.assignedTo}</SelectItem>] : []).concat(dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
+                {dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
-                {(form.activityCategory && !dropdownOptions.activityCategory.includes(form.activityCategory) ? [<SelectItem key={form.activityCategory} value={form.activityCategory}>{form.activityCategory}</SelectItem>] : []).concat(dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>))}
+                {dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
