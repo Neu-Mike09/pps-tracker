@@ -53,16 +53,21 @@ Provide a concise 2-3 sentence summary of this document. The summary should expl
 
 Keep it plain, professional, and easy to read. Do not use markdown or bullet points — just 2-3 sentences in a single paragraph.`;
 
+    // Prisma returns Bytes as a Buffer in Node.js, but sometimes (especially
+    // with PostgreSQL) it may come as a Uint8Array or array-like object.
+    // Ensure we have a proper Buffer before encoding to base64.
+    const fileBuffer = Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data as Uint8Array);
+
     let result;
     if (isImage || isPdf) {
       result = await model.generateContent([
         SUMMARY_PROMPT,
-        { inlineData: { mimeType: isPdf ? "application/pdf" : file.mimeType, data: file.data.toString("base64") } },
+        { inlineData: { mimeType: isPdf ? "application/pdf" : file.mimeType, data: fileBuffer.toString("base64") } },
       ]);
     } else {
       // Text-based file
       let textContent = "";
-      try { textContent = file.data.toString("utf-8"); } catch {
+      try { textContent = fileBuffer.toString("utf-8"); } catch {
         return NextResponse.json({ summary: "Could not extract text from this file to generate a summary." });
       }
       result = await model.generateContent([
