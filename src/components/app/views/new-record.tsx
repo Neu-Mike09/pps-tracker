@@ -527,7 +527,7 @@ export function NewRecordView() {
                     <Select value={form.assignedTo || ""} onValueChange={(v) => update("assignedTo", v)}>
                       <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
                       <SelectContent>
-                        {dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {(form.assignedTo && !dropdownOptions.assignedTo.includes(form.assignedTo) ? [<SelectItem key={form.assignedTo} value={form.assignedTo}>{form.assignedTo}</SelectItem>] : []).concat(dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -535,7 +535,7 @@ export function NewRecordView() {
                     <Select value={form.status || ""} onValueChange={(v) => update("status", v)}>
                       <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                       <SelectContent>
-                        {dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {(form.status && !dropdownOptions.status.includes(form.status) ? [<SelectItem key={form.status} value={form.status}>{form.status}</SelectItem>] : []).concat(dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -553,7 +553,7 @@ export function NewRecordView() {
                     <Select value={form.activityCategory || ""} onValueChange={(v) => update("activityCategory", v)}>
                       <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                       <SelectContent>
-                        {dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        {(form.activityCategory && !dropdownOptions.activityCategory.includes(form.activityCategory) ? [<SelectItem key={form.activityCategory} value={form.activityCategory}>{form.activityCategory}</SelectItem>] : []).concat(dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </Field>

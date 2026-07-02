@@ -307,21 +307,21 @@ export function RecordsView() {
               <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
-                {dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {(form.status && !dropdownOptions.status.includes(form.status) ? [<SelectItem key={form.status} value={form.status}>{form.status}</SelectItem>] : []).concat(dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
               </SelectContent>
             </Select>
             <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v === "all" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Assigned To" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All staff</SelectItem>
-                {dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {(form.assignedTo && !dropdownOptions.assignedTo.includes(form.assignedTo) ? [<SelectItem key={form.assignedTo} value={form.assignedTo}>{form.assignedTo}</SelectItem>] : []).concat(dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
               </SelectContent>
             </Select>
             <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
-                {dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                {(form.activityCategory && !dropdownOptions.activityCategory.includes(form.activityCategory) ? [<SelectItem key={form.activityCategory} value={form.activityCategory}>{form.activityCategory}</SelectItem>] : []).concat(dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
@@ -725,7 +725,7 @@ function EditRecordDialog({
               <Select value={form.assignedTo || ""} onValueChange={(v) => update("assignedTo", v)}>
                 <SelectTrigger><SelectValue placeholder="Staff" /></SelectTrigger>
                 <SelectContent>
-                  {dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {(form.assignedTo && !dropdownOptions.assignedTo.includes(form.assignedTo) ? [<SelectItem key={form.assignedTo} value={form.assignedTo}>{form.assignedTo}</SelectItem>] : []).concat(dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
@@ -734,7 +734,7 @@ function EditRecordDialog({
               <Select value={form.status || ""} onValueChange={(v) => update("status", v)}>
                 <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
-                  {dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {(form.status && !dropdownOptions.status.includes(form.status) ? [<SelectItem key={form.status} value={form.status}>{form.status}</SelectItem>] : []).concat(dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
@@ -754,7 +754,7 @@ function EditRecordDialog({
               <Select value={form.activityCategory || ""} onValueChange={(v) => update("activityCategory", v)}>
                 <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
                 <SelectContent>
-                  {dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {(form.activityCategory && !dropdownOptions.activityCategory.includes(form.activityCategory) ? [<SelectItem key={form.activityCategory} value={form.activityCategory}>{form.activityCategory}</SelectItem>] : []).concat(dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
