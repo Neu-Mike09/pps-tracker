@@ -129,6 +129,14 @@ export function RecordsView() {
   const [assignedFilter, setAssignedFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [sortField, setSortField] = useState("dateReceived");
+  const [sortDir, setSortDir] = useState("desc");
+  const [dateRecvFrom, setDateRecvFrom] = useState("");
+  const [dateRecvTo, setDateRecvTo] = useState("");
+  const [deadlineFrom, setDeadlineFrom] = useState("");
+  const [deadlineTo, setDeadlineTo] = useState("");
+  const [activityFrom, setActivityFrom] = useState("");
+  const [activityTo, setActivityTo] = useState("");
   const [editingRecord, setEditingRecord] = useState<Record | null>(null);
   const [showPhoto, setShowPhoto] = useState<Record | null>(null);
 
@@ -141,6 +149,14 @@ export function RecordsView() {
       if (assignedFilter) params.set("assignedTo", assignedFilter);
       if (categoryFilter) params.set("category", categoryFilter);
       if (overdueOnly) params.set("overdue", "1");
+      if (sortField) params.set("sortField", sortField);
+      if (sortDir) params.set("sortDir", sortDir);
+      if (dateRecvFrom) params.set("dateRecvFrom", dateRecvFrom);
+      if (dateRecvTo) params.set("dateRecvTo", dateRecvTo);
+      if (deadlineFrom) params.set("deadlineFrom", deadlineFrom);
+      if (deadlineTo) params.set("deadlineTo", deadlineTo);
+      if (activityFrom) params.set("activityFrom", activityFrom);
+      if (activityTo) params.set("activityTo", activityTo);
       const res = await fetch(`/api/communications?${params}`);
       if (res.status === 401) {
         // Session cookie missing - just show empty state, don't force reload
@@ -165,7 +181,7 @@ export function RecordsView() {
     const t = setTimeout(loadRecords, 300);
     return () => clearTimeout(t);
      
-  }, [search, statusFilter, assignedFilter, categoryFilter, overdueOnly]);
+  }, [search, statusFilter, assignedFilter, categoryFilter, overdueOnly, sortField, sortDir, dateRecvFrom, dateRecvTo, deadlineFrom, deadlineTo, activityFrom, activityTo]);
 
   // Auto-open edit dialog if editId is set (from dashboard click)
   useEffect(() => {
@@ -328,6 +344,29 @@ export function RecordsView() {
             </Select>
           </div>
           <div className="flex items-center gap-3 mt-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Sort by:</span>
+              <Select value={sortField} onValueChange={setSortField}>
+                <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dateReceived">Date Received</SelectItem>
+                  <SelectItem value="controlNo">Control No.</SelectItem>
+                  <SelectItem value="fromOffice">From</SelectItem>
+                  <SelectItem value="subject">Subject</SelectItem>
+                  <SelectItem value="assignedTo">Assigned</SelectItem>
+                  <SelectItem value="deadline">Deadline</SelectItem>
+                  <SelectItem value="activityDate">Activity Date</SelectItem>
+                  <SelectItem value="status">Status</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortDir} onValueChange={setSortDir}>
+                <SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">↓ Desc</SelectItem>
+                  <SelectItem value="asc">↑ Asc</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               variant={overdueOnly ? "default" : "outline"}
               size="sm"
@@ -335,12 +374,12 @@ export function RecordsView() {
               className={overdueOnly ? "bg-red-600 hover:bg-red-700" : ""}
             >
               <AlertTriangle className="w-3 h-3 mr-1" />
-              {overdueOnly ? "Showing overdue only" : "Show overdue only"}
+              {overdueOnly ? "Overdue only" : "Show overdue"}
             </Button>
             <Button variant="ghost" size="sm" onClick={loadRecords}>
               <RefreshCw className="w-3 h-3 mr-1" /> Refresh
             </Button>
-            {(search || statusFilter || assignedFilter || categoryFilter || overdueOnly) && (
+            {(search || statusFilter || assignedFilter || categoryFilter || overdueOnly || dateRecvFrom || dateRecvTo || deadlineFrom || deadlineTo || activityFrom || activityTo) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -350,11 +389,35 @@ export function RecordsView() {
                   setAssignedFilter("");
                   setCategoryFilter("");
                   setOverdueOnly(false);
+                  setDateRecvFrom(""); setDateRecvTo("");
+                  setDeadlineFrom(""); setDeadlineTo("");
+                  setActivityFrom(""); setActivityTo("");
                 }}
               >
-                <X className="w-3 h-3 mr-1" /> Clear filters
+                <X className="w-3 h-3 mr-1" /> Clear
               </Button>
             )}
+          </div>
+          {/* Date range filters */}
+          <div className="flex flex-wrap items-center gap-3 mt-2">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-slate-500">Recv:</span>
+              <Input type="date" value={dateRecvFrom} onChange={(e) => setDateRecvFrom(e.target.value)} className="h-7 w-32 text-xs" />
+              <span className="text-[10px] text-slate-400">to</span>
+              <Input type="date" value={dateRecvTo} onChange={(e) => setDateRecvTo(e.target.value)} className="h-7 w-32 text-xs" />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-slate-500">Deadline:</span>
+              <Input type="date" value={deadlineFrom} onChange={(e) => setDeadlineFrom(e.target.value)} className="h-7 w-32 text-xs" />
+              <span className="text-[10px] text-slate-400">to</span>
+              <Input type="date" value={deadlineTo} onChange={(e) => setDeadlineTo(e.target.value)} className="h-7 w-32 text-xs" />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-slate-500">Activity:</span>
+              <Input type="date" value={activityFrom} onChange={(e) => setActivityFrom(e.target.value)} className="h-7 w-32 text-xs" />
+              <span className="text-[10px] text-slate-400">to</span>
+              <Input type="date" value={activityTo} onChange={(e) => setActivityTo(e.target.value)} className="h-7 w-32 text-xs" />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -384,7 +447,8 @@ export function RecordsView() {
                       <th className="p-3 font-medium">From</th>
                       <th className="p-3 font-medium">Subject</th>
                       <th className="p-3 font-medium">Assigned</th>
-                      <th className="p-3 font-medium">Target</th>
+                      <th className="p-3 font-medium">Deadline</th>
+                      <th className="p-3 font-medium">Activity Date &amp; Time</th>
                       <th className="p-3 font-medium">Status</th>
                       <th className="p-3 font-medium">Sync</th>
                       <th className="p-3 font-medium"></th>
@@ -431,6 +495,14 @@ export function RecordsView() {
                           <td className={`p-3 text-xs ${isOverdue ? "text-red-600 font-semibold" : ""}`}>
                             {fmtDate(r.targetDate)}
                             {isOverdue && <div className="text-[10px] text-red-500">OVERDUE</div>}
+                          </td>
+                          <td className="p-3 text-xs">
+                            {fmtDate(r.activityDateTime)}
+                            {r.activityDateTime && (
+                              <div className="text-[10px] text-slate-500">
+                                {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                              </div>
+                            )}
                           </td>
                           <td className="p-3">
                             {r.status && (
@@ -498,9 +570,14 @@ export function RecordsView() {
                         {r.assignedTo && <> • {r.assignedTo}</>}
                       </div>
                       <div className={isOverdue ? "text-red-600 font-semibold" : ""}>
-                        Target: {fmtDate(r.targetDate) || "-"}
+                        Deadline: {fmtDate(r.targetDate) || "-"}
                         {isOverdue && " (OVERDUE)"}
                       </div>
+                      {r.activityDateTime && (
+                        <div>
+                          Activity: {fmtDate(r.activityDateTime)} {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      )}
                     </div>
                     {r.syncStatus === "failed" && (
                       <div className="flex items-center justify-between pt-1">

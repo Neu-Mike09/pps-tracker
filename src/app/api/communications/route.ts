@@ -23,6 +23,18 @@ export async function GET(req: NextRequest) {
   const upcomingOnly = url.searchParams.get("upcoming") === "1";
   const limit = parseInt(url.searchParams.get("limit") || "0", 10) || undefined;
 
+  // Sorting
+  const sortField = url.searchParams.get("sortField") || "dateReceived";
+  const sortDir = url.searchParams.get("sortDir") || "desc";
+
+  // Date range filters
+  const dateRecvFrom = url.searchParams.get("dateRecvFrom");
+  const dateRecvTo = url.searchParams.get("dateRecvTo");
+  const deadlineFrom = url.searchParams.get("deadlineFrom");
+  const deadlineTo = url.searchParams.get("deadlineTo");
+  const activityFrom = url.searchParams.get("activityFrom");
+  const activityTo = url.searchParams.get("activityTo");
+
    
   const where: any = {};
   if (search) {
@@ -40,6 +52,23 @@ export async function GET(req: NextRequest) {
   if (category) where.activityCategory = category;
   if (yearStr) where.year = parseInt(yearStr, 10);
 
+  // Date range filters
+  if (dateRecvFrom || dateRecvTo) {
+    where.dateReceived = {};
+    if (dateRecvFrom) where.dateReceived.gte = new Date(dateRecvFrom);
+    if (dateRecvTo) { const t = new Date(dateRecvTo); t.setHours(23,59,59,999); where.dateReceived.lte = t; }
+  }
+  if (deadlineFrom || deadlineTo) {
+    where.targetDate = {};
+    if (deadlineFrom) where.targetDate.gte = new Date(deadlineFrom);
+    if (deadlineTo) { const t = new Date(deadlineTo); t.setHours(23,59,59,999); where.targetDate.lte = t; }
+  }
+  if (activityFrom || activityTo) {
+    where.activityDateTime = {};
+    if (activityFrom) where.activityDateTime.gte = new Date(activityFrom);
+    if (activityTo) { const t = new Date(activityTo); t.setHours(23,59,59,999); where.activityDateTime.lte = t; }
+  }
+
   if (overdueOnly) {
     where.targetDate = { lt: new Date() };
     where.status = { notIn: TERMINAL_STATUSES };
@@ -56,9 +85,23 @@ export async function GET(req: NextRequest) {
     ];
   }
 
+  // Map sort field to Prisma field name
+  const sortFieldMap: Record<string, string> = {
+    controlNo: "controlNo",
+    dateReceived: "dateReceived",
+    fromOffice: "fromOffice",
+    subject: "subject",
+    assignedTo: "assignedTo",
+    deadline: "targetDate",
+    activityDate: "activityDateTime",
+    status: "status",
+  };
+  const prismaSortField = sortFieldMap[sortField] || "dateReceived";
+  const sortDirection = sortDir === "asc" ? "asc" : "desc";
+
   const records = await db.communication.findMany({
     where,
-    orderBy: [{ dateReceived: "desc" }, { controlNo: "desc" }],
+    orderBy: [{ [prismaSortField]: sortDirection }, { controlNo: "desc" }],
     take: limit,
   });
 
