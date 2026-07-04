@@ -52,6 +52,7 @@ import {
   RotateCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ColumnFilter } from "@/components/app/parts/column-filter";
 import {
   STATUS_COLORS,
   PRIORITY_COLORS,
@@ -137,6 +138,11 @@ export function RecordsView() {
   const [deadlineTo, setDeadlineTo] = useState("");
   const [activityFrom, setActivityFrom] = useState("");
   const [activityTo, setActivityTo] = useState("");
+
+  // Multi-select column filters (Google Sheets-style)
+  const [filterFromOffice, setFilterFromOffice] = useState<string[]>([]);
+  const [filterSubject, setFilterSubject] = useState<string[]>([]);
+  const [filterControlNo, setFilterControlNo] = useState<string[]>([]);
   const [editingRecord, setEditingRecord] = useState<Record | null>(null);
   const [showPhoto, setShowPhoto] = useState<Record | null>(null);
 
@@ -157,6 +163,9 @@ export function RecordsView() {
       if (deadlineTo) params.set("deadlineTo", deadlineTo);
       if (activityFrom) params.set("activityFrom", activityFrom);
       if (activityTo) params.set("activityTo", activityTo);
+      if (filterFromOffice.length) params.set("fromOfficeValues", filterFromOffice.join(","));
+      if (filterSubject.length) params.set("subjectValues", filterSubject.join(","));
+      if (filterControlNo.length) params.set("controlNoValues", filterControlNo.join(","));
       const res = await fetch(`/api/communications?${params}`);
       if (res.status === 401) {
         // Session cookie missing - just show empty state, don't force reload
@@ -181,7 +190,7 @@ export function RecordsView() {
     const t = setTimeout(loadRecords, 300);
     return () => clearTimeout(t);
      
-  }, [search, statusFilter, assignedFilter, categoryFilter, overdueOnly, sortField, sortDir, dateRecvFrom, dateRecvTo, deadlineFrom, deadlineTo, activityFrom, activityTo]);
+  }, [search, statusFilter, assignedFilter, categoryFilter, overdueOnly, sortField, sortDir, dateRecvFrom, dateRecvTo, deadlineFrom, deadlineTo, activityFrom, activityTo, filterFromOffice, filterSubject, filterControlNo]);
 
   // Auto-open edit dialog if editId is set (from dashboard click)
   useEffect(() => {
@@ -280,6 +289,13 @@ export function RecordsView() {
       });
     }
   };
+
+  // Compute unique values from loaded records for column filters
+  const uniqueFromOffice = useMemo(() => [...new Set(records.map((r) => r.fromOffice || "(blank)"))].sort(), [records]);
+  const uniqueControlNo = useMemo(() => [...new Set(records.map((r) => r.controlNo))].sort(), [records]);
+
+  // Sort helper for column filter
+  const handleSort = (field: string, dir: string) => { setSortField(field); setSortDir(dir); };
 
   const handleDelete = async (record: Record) => {
     try {
@@ -392,6 +408,7 @@ export function RecordsView() {
                   setDateRecvFrom(""); setDateRecvTo("");
                   setDeadlineFrom(""); setDeadlineTo("");
                   setActivityFrom(""); setActivityTo("");
+                  setFilterFromOffice([]); setFilterControlNo([]);
                 }}
               >
                 <X className="w-3 h-3 mr-1" /> Clear
@@ -442,14 +459,14 @@ export function RecordsView() {
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr className="text-left text-xs uppercase text-slate-500">
-                      <th className="p-3 font-medium">Control No.</th>
-                      <th className="p-3 font-medium">Date Recv</th>
-                      <th className="p-3 font-medium">From</th>
+                      <th className="p-3 font-medium"><ColumnFilter label="Control No." values={uniqueControlNo} selected={filterControlNo} onChange={setFilterControlNo} onSortAsc={() => handleSort("controlNo", "asc")} onSortDesc={() => handleSort("controlNo", "desc")} active={filterControlNo.length > 0} /></th>
+                      <th className="p-3 font-medium"><ColumnFilter label="Date Recv" values={[]} selected={[]} onChange={() => {}} onSortAsc={() => handleSort("dateReceived", "asc")} onSortDesc={() => handleSort("dateReceived", "desc")} active={false} /></th>
+                      <th className="p-3 font-medium"><ColumnFilter label="From" values={uniqueFromOffice} selected={filterFromOffice} onChange={setFilterFromOffice} onSortAsc={() => handleSort("fromOffice", "asc")} onSortDesc={() => handleSort("fromOffice", "desc")} active={filterFromOffice.length > 0} /></th>
                       <th className="p-3 font-medium">Subject</th>
-                      <th className="p-3 font-medium">Assigned</th>
-                      <th className="p-3 font-medium">Deadline</th>
-                      <th className="p-3 font-medium">Activity Date &amp; Time</th>
-                      <th className="p-3 font-medium">Status</th>
+                      <th className="p-3 font-medium"><ColumnFilter label="Assigned" values={dropdownOptions.assignedTo} selected={assignedFilter ? [assignedFilter] : []} onChange={(v) => setAssignedFilter(v.length === 1 ? v[0] : "")} onSortAsc={() => handleSort("assignedTo", "asc")} onSortDesc={() => handleSort("assignedTo", "desc")} active={!!assignedFilter} /></th>
+                      <th className="p-3 font-medium"><ColumnFilter label="Deadline" values={[]} selected={[]} onChange={() => {}} onSortAsc={() => handleSort("deadline", "asc")} onSortDesc={() => handleSort("deadline", "desc")} active={false} /></th>
+                      <th className="p-3 font-medium"><ColumnFilter label="Activity Date" values={[]} selected={[]} onChange={() => {}} onSortAsc={() => handleSort("activityDate", "asc")} onSortDesc={() => handleSort("activityDate", "desc")} active={false} /></th>
+                      <th className="p-3 font-medium"><ColumnFilter label="Status" values={dropdownOptions.status} selected={statusFilter ? [statusFilter] : []} onChange={(v) => setStatusFilter(v.length === 1 ? v[0] : "")} onSortAsc={() => handleSort("status", "asc")} onSortDesc={() => handleSort("status", "desc")} active={!!statusFilter} /></th>
                       <th className="p-3 font-medium">Sync</th>
                       <th className="p-3 font-medium"></th>
                     </tr>

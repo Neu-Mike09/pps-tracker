@@ -35,7 +35,10 @@ export async function GET(req: NextRequest) {
   const activityFrom = url.searchParams.get("activityFrom");
   const activityTo = url.searchParams.get("activityTo");
 
-   
+  // Multi-select column filters (comma-separated)
+  const fromOfficeValues = url.searchParams.get("fromOfficeValues");
+  const controlNoValues = url.searchParams.get("controlNoValues");
+
   const where: any = {};
   if (search) {
     where.OR = [
@@ -51,6 +54,16 @@ export async function GET(req: NextRequest) {
   if (assignedTo) where.assignedTo = assignedTo;
   if (category) where.activityCategory = category;
   if (yearStr) where.year = parseInt(yearStr, 10);
+
+  // Multi-select filters
+  if (fromOfficeValues) {
+    const vals = fromOfficeValues.split(",").map((v) => v === "(blank)" ? "" : v);
+    where.fromOffice = { in: vals };
+  }
+  if (controlNoValues) {
+    const vals = controlNoValues.split(",");
+    where.controlNo = { in: vals };
+  }
 
   // Date range filters
   if (dateRecvFrom || dateRecvTo) {
