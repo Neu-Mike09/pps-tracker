@@ -119,128 +119,120 @@ export function DashboardView() {
   const monthlyData = data.monthlyData || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-[#1a2e1a]">Dashboard</h1>
-          <p className="text-sm text-[#6b7a5c]">
-            {now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-          </p>
+          <p className="text-sm text-[#6b7a5c]">Track, monitor, and manage your incoming communications.</p>
         </div>
-        <Button onClick={() => setView("new")} className="bg-[#2d6a4f] hover:bg-[#1a3c2e] text-[#f5f0e1]">
-          <Plus className="w-4 h-4 mr-1" />
-          New Record
+        <Button onClick={() => setView("new")} className="bg-[#2d6a4f] hover:bg-[#1a3c2e] text-white">
+          <Plus className="w-4 h-4 mr-1" /> New Record
         </Button>
       </div>
 
-      {/* Quick stat tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          label="Total Records"
-          value={data.total}
-          icon={ListChecks}
-          color="emerald"
-          onClick={() => setView("records")}
-        />
-        <StatCard
-          label="Overdue"
-          value={data.overdue}
-          icon={AlertTriangle}
-          color="red"
-          onClick={() => setView("records")}
-        />
-        <StatCard
-          label="Upcoming (14d)"
-          value={data.upcoming.length}
-          icon={CalendarClock}
-          color="amber"
-          onClick={() => setView("calendar")}
-        />
-        <StatCard
-          label="Sync Failed"
-          value={data.pendingSync}
-          icon={FileWarning}
-          color={data.pendingSync > 0 ? "red" : "slate"}
-          onClick={() => setView("records")}
-        />
+      {/* Stat cards — clean white cards like the reference */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total Records" value={data.total} icon={ListChecks} color="emerald" onClick={() => setView("records")} />
+        <StatCard label="Overdue" value={data.overdue} icon={AlertTriangle} color="red" onClick={() => setView("records")} />
+        <StatCard label="Upcoming (14d)" value={data.upcoming.length} icon={CalendarClock} color="amber" onClick={() => setView("calendar")} />
+        <StatCard label="Sync Failed" value={data.pendingSync} icon={FileWarning} color={data.pendingSync > 0 ? "red" : "slate"} onClick={() => setView("records")} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Status Donut Chart */}
-        <Card className="lg:col-span-1">
-          <CardHeader><CardTitle className="text-base">Status Distribution</CardTitle></CardHeader>
-          <CardContent>
-            {data.total === 0 ? (
-              <p className="text-sm text-slate-500 py-6 text-center">No records yet.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={STATUSES.filter((s) => (data.statusCounts[s] || 0) > 0).map((s) => ({ name: s, value: data.statusCounts[s] || 0 }))}
-                    cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value"
-                  >
-                    {STATUSES.filter((s) => (data.statusCounts[s] || 0) > 0).map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "#1a3c2e", border: "none", borderRadius: "8px", color: "#f5f0e1", fontSize: "12px" }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: "10px", marginTop: "8px" }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
+      {/* Charts row — Bar chart (2 cols) + Donut chart (1 col) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Monthly Bar Chart */}
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle className="text-base">Records by Month</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base text-[#1a2e1a]">Records Analytics</CardTitle></CardHeader>
           <CardContent>
-            {data.recent.length === 0 && data.total === 0 ? (
-              <p className="text-sm text-slate-500 py-6 text-center">No records yet.</p>
+            {data.total === 0 ? (
+              <p className="text-sm text-[#6b7a5c] py-8 text-center">No records yet.</p>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#6b7a5c" }} axisLine={{ stroke: "#d4c9a8" }} />
-                  <YAxis tick={{ fontSize: 10, fill: "#6b7a5c" }} axisLine={{ stroke: "#d4c9a8" }} allowDecimals={false} />
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2d6a4f" />
+                      <stop offset="100%" stopColor="#52b788" />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#8a9a7a" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#8a9a7a" }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip
-                    contentStyle={{ background: "#1a3c2e", border: "none", borderRadius: "8px", color: "#f5f0e1", fontSize: "12px" }}
-                    cursor={{ fill: "rgba(45,106,79,0.1)" }}
+                    contentStyle={{ background: "#1a3c2e", border: "none", borderRadius: "10px", color: "#f5f0e1", fontSize: "12px", padding: "8px 12px" }}
+                    cursor={{ fill: "rgba(45,106,79,0.08)" }}
                   />
-                  <Bar dataKey="count" fill="#2d6a4f" radius={[4, 4, 0, 0]} name="Records" />
+                  <Bar dataKey="count" fill="url(#barGradient)" radius={[6, 6, 0, 0]} name="Records" maxBarSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
-      </div>
 
-      {/* Status Summary (compact) + Category Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Status Donut Chart */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Status Summary</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base text-[#1a2e1a]">Status Progress</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {STATUSES.map((s) => (
-                <div key={s} className="flex items-center justify-between px-3 py-2 rounded-md border border-[#d4c9a8] bg-[#efe7d5]">
-                  <span className="text-xs text-[#1a2e1a]">{s}</span>
-                  <Badge variant="outline" className={STATUS_COLORS[s] || "bg-slate-100"}>
-                    {data.statusCounts[s] || 0}
-                  </Badge>
+            {data.total === 0 ? (
+              <p className="text-sm text-[#6b7a5c] py-8 text-center">No records yet.</p>
+            ) : (
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={STATUSES.filter((s) => (data.statusCounts[s] || 0) > 0).map((s) => ({ name: s, value: data.statusCounts[s] || 0 }))}
+                      cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={3} dataKey="value"
+                    >
+                      {STATUSES.filter((s) => (data.statusCounts[s] || 0) > 0).map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: "#1a3c2e", border: "none", borderRadius: "10px", color: "#f5f0e1", fontSize: "12px", padding: "8px 12px" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center label */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-2xl font-bold text-[#1a2e1a]">{data.total}</span>
+                  <span className="text-[10px] text-[#6b7a5c]">Total</span>
+                </div>
+              </div>
+            )}
+            {/* Legend */}
+            <div className="flex flex-wrap gap-2 justify-center mt-2">
+              {STATUSES.filter((s) => (data.statusCounts[s] || 0) > 0).map((s, index) => (
+                <div key={s} className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
+                  <span className="text-[10px] text-[#6b7a5c]">{s} ({data.statusCounts[s]})</span>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
+      </div>
 
+      {/* Status Summary + Category */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card>
-          <CardHeader><CardTitle className="text-base">Records by Category</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base text-[#1a2e1a]">Status Summary</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {STATUSES.map((s) => (
+                <div key={s} className="flex items-center justify-between px-3 py-2 rounded-lg border border-[#e8dcc0] bg-[#faf7ef]">
+                  <span className="text-xs text-[#1a2e1a]">{s}</span>
+                  <Badge variant="outline" className={STATUS_COLORS[s] || "bg-slate-100"}>{data.statusCounts[s] || 0}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base text-[#1a2e1a]">Records by Category</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {ACTIVITY_CATEGORIES.map((c) => (
-                <div key={c} className="flex items-center justify-between px-3 py-2 rounded-md border border-[#d4c9a8] bg-[#efe7d5]">
+                <div key={c} className="flex items-center justify-between px-3 py-2 rounded-lg border border-[#e8dcc0] bg-[#faf7ef]">
                   <span className="text-xs text-[#1a2e1a]">{c}</span>
                   <span className="text-sm font-semibold text-[#1a2e1a]">{data.categoryCounts[c] || 0}</span>
                 </div>
@@ -381,36 +373,27 @@ export function DashboardView() {
 }
 
 function StatCard({
-  label,
-  value,
-  icon: Icon,
-  color,
-  onClick,
+  label, value, icon: Icon, color, onClick,
 }: {
-  label: string;
-  value: number;
-  icon: React.ElementType;
-  color: "emerald" | "red" | "amber" | "slate";
-  onClick?: () => void;
+  label: string; value: number; icon: React.ElementType; color: "emerald" | "red" | "amber" | "slate"; onClick?: () => void;
 }) {
-  const gradients = {
-    emerald: "from-emerald-600 to-emerald-800",
-    red: "from-red-500 to-red-700",
-    amber: "from-amber-500 to-amber-700",
-    slate: "from-slate-500 to-slate-700",
+  const iconColors = {
+    emerald: "bg-emerald-100 text-emerald-700",
+    red: "bg-red-100 text-red-700",
+    amber: "bg-amber-100 text-amber-700",
+    slate: "bg-slate-100 text-slate-700",
   };
   return (
-    <button
-      onClick={onClick}
-      className={`text-left rounded-xl bg-gradient-to-br ${gradients[color]} p-4 shadow-lg transition-all hover:shadow-xl hover:scale-[1.03] text-white`}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+    <button onClick={onClick} className="text-left rounded-xl bg-white border border-[#e8dcc0] p-4 shadow-sm hover:shadow-md transition-all hover:scale-[1.02]">
+      <div className="flex items-center gap-3 mb-2">
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${iconColors[color]}`}>
           <Icon className="w-5 h-5" />
         </div>
-        <span className="text-3xl font-bold">{value}</span>
+        <div className="flex-1">
+          <div className="text-2xl font-bold text-[#1a2e1a]">{value}</div>
+        </div>
       </div>
-      <div className="text-xs font-medium opacity-90">{label}</div>
+      <div className="text-xs font-medium text-[#6b7a5c]">{label}</div>
     </button>
   );
 }
