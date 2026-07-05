@@ -116,12 +116,12 @@ export function DashboardView() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-[#1a2e1a]">Dashboard</h1>
+          <p className="text-sm text-[#6b7a5c]">
             {now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
-        <Button onClick={() => setView("new")} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={() => setView("new")} className="bg-[#2d6a4f] hover:bg-[#1a3c2e] text-[#f5f0e1]">
           <Plus className="w-4 h-4 mr-1" />
           New Record
         </Button>
@@ -354,20 +354,22 @@ function StatCard({
   color: "emerald" | "red" | "amber" | "slate";
   onClick?: () => void;
 }) {
-  const colors = {
-    emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
-    red: "bg-red-50 border-red-200 text-red-700",
-    amber: "bg-amber-50 border-amber-200 text-amber-700",
-    slate: "bg-slate-50 border-slate-200 text-slate-700",
+  const gradients = {
+    emerald: "from-emerald-600 to-emerald-800",
+    red: "from-red-500 to-red-700",
+    amber: "from-amber-500 to-amber-700",
+    slate: "from-slate-500 to-slate-700",
   };
   return (
     <button
       onClick={onClick}
-      className={`text-left rounded-lg border p-3 transition-transform hover:scale-[1.02] ${colors[color]}`}
+      className={`text-left rounded-xl bg-gradient-to-br ${gradients[color]} p-4 shadow-lg transition-all hover:shadow-xl hover:scale-[1.03] text-white`}
     >
-      <div className="flex items-center justify-between mb-1">
-        <Icon className="w-4 h-4" />
-        <span className="text-2xl font-bold">{value}</span>
+      <div className="flex items-center justify-between mb-2">
+        <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+          <Icon className="w-5 h-5" />
+        </div>
+        <span className="text-3xl font-bold">{value}</span>
       </div>
       <div className="text-xs font-medium opacity-90">{label}</div>
     </button>

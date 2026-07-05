@@ -45,37 +45,38 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Forest + Wheat Agriculture Palette */
+  --background: #f5f0e1;           /* warm wheat/cream */
+  --foreground: #1a2e1a;           /* deep forest text */
+  --card: #ffffff;
+  --card-foreground: #1a2e1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a2e1a;
+  --primary: #1a3c2e;              /* deep forest green */
+  --primary-foreground: #f5f0e1;
+  --secondary: #e8dcc0;            /* wheat */
+  --secondary-foreground: #1a2e1a;
+  --muted: #efe7d5;                /* light wheat */
+  --muted-foreground: #6b7a5c;     /* sage gray */
+  --accent: #d4a017;               /* amber/gold */
+  --accent-foreground: #1a2e1a;
+  --destructive: #c0392b;          /* terracotta red */
+  --border: #d4c9a8;               /* wheat border */
+  --input: #e8dcc0;
+  --ring: #2d6a4f;                 /* medium forest */
+  --chart-1: #2d6a4f;              /* forest green */
+  --chart-2: #d4a017;              /* amber */
+  --chart-3: #8b6914;              /* golden brown */
+  --chart-4: #c0392b;              /* terracotta */
+  --chart-5: #6b8e23;              /* olive green */
+  --sidebar: #1a3c2e;              /* deep forest green sidebar */
+  --sidebar-foreground: #d4c9a8;   /* wheat text on sidebar */
+  --sidebar-primary: #2d6a4f;      /* active nav item */
+  --sidebar-primary-foreground: #f5f0e1;
+  --sidebar-accent: #245a42;       /* hover on sidebar */
+  --sidebar-accent-foreground: #f5f0e1;
+  --sidebar-border: #2d5a3e;
+  --sidebar-ring: #2d6a4f;
 }
 
 .dark {
