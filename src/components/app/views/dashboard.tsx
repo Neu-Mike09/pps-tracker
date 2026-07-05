@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Clock, CheckCircle2, FileWarning, Plus, CalendarClock, ListChecks } from "lucide-react";
 import { STATUSES, STATUS_COLORS, ACTIVITY_CATEGORIES, PRIORITY_COLORS, TERMINAL_STATUSES } from "@/lib/constants";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+
+// Chart colors matching the agriculture palette
+const CHART_COLORS = ["#2d6a4f", "#d4a017", "#c0392b", "#6b8e23", "#8b6914", "#e76f51", "#a8c09a", "#588157", "#3a5a40"];
 
 interface DashboardData {
   total: number;
@@ -111,6 +115,9 @@ export function DashboardView() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Monthly data from API (last 12 months)
+  const monthlyData = data.monthlyData || [];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -160,16 +167,65 @@ export function DashboardView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Status breakdown */}
+        {/* Status Donut Chart */}
+        <Card className="lg:col-span-1">
+          <CardHeader><CardTitle className="text-base">Status Distribution</CardTitle></CardHeader>
+          <CardContent>
+            {data.total === 0 ? (
+              <p className="text-sm text-slate-500 py-6 text-center">No records yet.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={STATUSES.filter((s) => (data.statusCounts[s] || 0) > 0).map((s) => ({ name: s, value: data.statusCounts[s] || 0 }))}
+                    cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value"
+                  >
+                    {STATUSES.filter((s) => (data.statusCounts[s] || 0) > 0).map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: "#1a3c2e", border: "none", borderRadius: "8px", color: "#f5f0e1", fontSize: "12px" }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "10px", marginTop: "8px" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Monthly Bar Chart */}
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Status Summary</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Records by Month</CardTitle></CardHeader>
+          <CardContent>
+            {data.recent.length === 0 && data.total === 0 ? (
+              <p className="text-sm text-slate-500 py-6 text-center">No records yet.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#6b7a5c" }} axisLine={{ stroke: "#d4c9a8" }} />
+                  <YAxis tick={{ fontSize: 10, fill: "#6b7a5c" }} axisLine={{ stroke: "#d4c9a8" }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ background: "#1a3c2e", border: "none", borderRadius: "8px", color: "#f5f0e1", fontSize: "12px" }}
+                    cursor={{ fill: "rgba(45,106,79,0.1)" }}
+                  />
+                  <Bar dataKey="count" fill="#2d6a4f" radius={[4, 4, 0, 0]} name="Records" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Status Summary (compact) + Category Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Status Summary</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {STATUSES.map((s) => (
-                <div key={s} className="flex items-center justify-between px-3 py-2 rounded-md border border-slate-200 bg-slate-50">
-                  <span className="text-xs text-slate-700">{s}</span>
+                <div key={s} className="flex items-center justify-between px-3 py-2 rounded-md border border-[#d4c9a8] bg-[#efe7d5]">
+                  <span className="text-xs text-[#1a2e1a]">{s}</span>
                   <Badge variant="outline" className={STATUS_COLORS[s] || "bg-slate-100"}>
                     {data.statusCounts[s] || 0}
                   </Badge>
@@ -179,34 +235,17 @@ export function DashboardView() {
           </CardContent>
         </Card>
 
-        {/* Year breakdown */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Records by Year</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Records by Category</CardTitle></CardHeader>
           <CardContent>
-            {data.yearAgg.length === 0 ? (
-              <p className="text-sm text-slate-500">No records yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {data.yearAgg.map((y) => (
-                  <div key={y.year} className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{y.year}</span>
-                    <div className="flex items-center gap-2 flex-1 ml-3">
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500"
-                          style={{
-                            width: `${(y.count / Math.max(...data.yearAgg.map((x) => x.count))) * 100}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs text-slate-600 w-8 text-right">{y.count}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {ACTIVITY_CATEGORIES.map((c) => (
+                <div key={c} className="flex items-center justify-between px-3 py-2 rounded-md border border-[#d4c9a8] bg-[#efe7d5]">
+                  <span className="text-xs text-[#1a2e1a]">{c}</span>
+                  <span className="text-sm font-semibold text-[#1a2e1a]">{data.categoryCounts[c] || 0}</span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>

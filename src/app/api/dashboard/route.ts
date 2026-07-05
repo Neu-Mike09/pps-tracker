@@ -78,6 +78,24 @@ export async function GET() {
     orderBy: { year: "desc" },
   });
 
+  // Monthly breakdown (last 12 months) for bar chart
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthlyData: Array<{ month: string; count: number }> = [];
+  const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const monthlyRecords = await db.communication.findMany({
+    where: { dateReceived: { gte: twelveMonthsAgo } },
+    select: { dateReceived: true },
+  });
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const label = `${monthNames[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+    const count = monthlyRecords.filter((r) => {
+      const rd = new Date(r.dateReceived);
+      return rd.getMonth() === d.getMonth() && rd.getFullYear() === d.getFullYear();
+    }).length;
+    monthlyData.push({ month: label, count });
+  }
+
   return NextResponse.json({
     total,
     statusCounts,
@@ -88,5 +106,6 @@ export async function GET() {
     recent,
     upcoming,
     yearAgg: yearAgg.map((y) => ({ year: y.year, count: y._count._all })),
+    monthlyData,
   });
 }
