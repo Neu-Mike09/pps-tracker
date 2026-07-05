@@ -42,12 +42,12 @@ export async function GET(req: NextRequest) {
   const where: any = {};
   if (search) {
     where.OR = [
-      { controlNo: { contains: search } },
-      { subject: { contains: search } },
-      { fromOffice: { contains: search } },
-      { referenceNo: { contains: search } },
-      { remarks: { contains: search } },
-      { assignedTo: { contains: search } },
+      { controlNo: { contains: search, mode: "insensitive" } },
+      { subject: { contains: search, mode: "insensitive" } },
+      { fromOffice: { contains: search, mode: "insensitive" } },
+      { referenceNo: { contains: search, mode: "insensitive" } },
+      { remarks: { contains: search, mode: "insensitive" } },
+      { assignedTo: { contains: search, mode: "insensitive" } },
     ];
   }
   if (status) where.status = status;
