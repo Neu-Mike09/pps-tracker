@@ -5,7 +5,7 @@ import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Lock, User as UserIcon, Leaf, Drone, Sprout } from "lucide-react";
+import { Loader2, Lock, User as UserIcon, Leaf, Sprout } from "lucide-react";
 
 export function LoginScreen() {
   const setUser = useAppStore((s) => s.setUser);
@@ -40,89 +40,38 @@ export function LoginScreen() {
 
   return (
     <div className="relative min-h-screen overflow-hidden flex items-center justify-center p-4">
-      {/* Animated agricultural background */}
-      <div className="absolute inset-0 z-0">
-        {/* Base gradient — deep green to sky blue */}
-        <div className="absolute inset-0 bg-gradient-to-b from-emerald-900 via-emerald-700 to-sky-800" />
+      {/* Real-world agriculture video background */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover z-0"
+        poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'%3E%3Crect width='16' height='9' fill='%231a3c2e'/%3E%3C/svg%3E"
+      >
+        <source src="/agri-bg.mp4" type="video/mp4" />
+      </video>
 
-        {/* Floating particles (seeds/pollen) */}
-        <div className="absolute inset-0">
-          {Array.from({ length: 30 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute rounded-full bg-emerald-200/20"
-              style={{
-                width: `${4 + Math.random() * 8}px`,
-                height: `${4 + Math.random() * 8}px`,
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animation: `float ${8 + Math.random() * 12}s ease-in-out infinite`,
-                animationDelay: `${Math.random() * 5}s`,
-              }}
-            />
-          ))}
-        </div>
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 z-1 bg-gradient-to-b from-black/50 via-black/40 to-black/60" />
 
-        {/* Animated drone SVG — flying across the sky */}
-        <div
-          className="absolute top-[10%] opacity-20"
-          style={{ animation: "droneFly 25s linear infinite" }}
-        >
-          <svg width="60" height="60" viewBox="0 0 60 60" fill="none" stroke="white" strokeWidth="1.5">
-            {/* Drone body */}
-            <rect x="22" y="25" width="16" height="8" rx="3" fill="white" fillOpacity="0.3" />
-            {/* Arms */}
-            <line x1="14" y1="20" x2="22" y2="27" />
-            <line x1="38" y1="27" x2="46" y2="20" />
-            <line x1="14" y1="38" x2="22" y2="31" />
-            <line x1="38" y1="31" x2="46" y2="38" />
-            {/* Rotors (animated) */}
-            <ellipse cx="14" cy="18" rx="8" ry="1.5" fill="white" fillOpacity="0.2" style={{ animation: "spin 0.1s linear infinite", transformOrigin: "14px 18px" }} />
-            <ellipse cx="46" cy="18" rx="8" ry="1.5" fill="white" fillOpacity="0.2" style={{ animation: "spin 0.1s linear infinite", transformOrigin: "46px 18px" }} />
-            <ellipse cx="14" cy="40" rx="8" ry="1.5" fill="white" fillOpacity="0.2" style={{ animation: "spin 0.1s linear infinite", transformOrigin: "14px 40px" }} />
-            <ellipse cx="46" cy="40" rx="8" ry="1.5" fill="white" fillOpacity="0.2" style={{ animation: "spin 0.1s linear infinite", transformOrigin: "46px 40px" }} />
-            {/* Camera/sensor */}
-            <circle cx="30" cy="33" r="2" fill="white" fillOpacity="0.5" />
-            {/* Scan lines */}
-            <line x1="10" y1="45" x2="50" y2="45" stroke="white" strokeOpacity="0.15" strokeDasharray="2 4" style={{ animation: "scan 3s ease-in-out infinite" }} />
-          </svg>
-        </div>
-
-        {/* Rolling hills (SVG, layered for depth) */}
-        <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 1440 320" preserveAspectRatio="none" style={{ height: "40%" }}>
-          {/* Back hill */}
-          <path d="M0,160 C320,120 480,200 720,170 C960,140 1120,210 1440,180 L1440,320 L0,320 Z" fill="rgba(6,78,59,0.4)" />
-          {/* Mid hill */}
-          <path d="M0,220 C240,180 400,250 640,220 C880,190 1040,260 1440,230 L1440,320 L0,320 Z" fill="rgba(4,120,87,0.4)" />
-          {/* Front hill with crops */}
-          <path d="M0,280 C200,250 360,300 600,270 C840,240 1080,290 1440,270 L1440,320 L0,320 Z" fill="rgba(4,150,100,0.5)" />
-          {/* Crop rows on front hill */}
-          {[0, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020, 1080, 1140, 1200, 1260, 1320, 1380].map((x) => (
-            <line key={x} x1={x} y1="280" x2={x + 30} y2="320" stroke="rgba(167,243,208,0.15)" strokeWidth="1" />
-          ))}
-        </svg>
-
-        {/* Grid overlay — precision agriculture / tech feel */}
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)`,
-            backgroundSize: "50px 50px",
-          }}
-        />
-
-        {/* Dark overlay for readability */}
-        <div className="absolute inset-0 bg-black/30" />
-      </div>
+      {/* Subtle grid overlay — precision agriculture tech feel */}
+      <div
+        className="absolute inset-0 z-1 opacity-[0.07]"
+        style={{
+          backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
+          backgroundSize: "60px 60px",
+        }}
+      />
 
       {/* Glassmorphism login card */}
       <div className="relative z-10 w-full max-w-md">
         <div
           className="rounded-2xl border border-white/20 shadow-2xl p-8"
           style={{
-            background: "rgba(255,255,255,0.1)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
+            background: "rgba(26,60,46,0.45)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
           }}
         >
           {/* Logo + title */}
@@ -209,30 +158,11 @@ export function LoginScreen() {
         </div>
       </div>
 
-      {/* Animations */}
+      {/* Pulse animation */}
       <style jsx global>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.3; }
-          50% { transform: translateY(-30px) translateX(15px); opacity: 0.6; }
-        }
-        @keyframes droneFly {
-          0% { transform: translateX(-100px) translateY(0); }
-          25% { transform: translateX(25vw) translateY(-20px); }
-          50% { transform: translateX(50vw) translateY(10px); }
-          75% { transform: translateX(75vw) translateY(-15px); }
-          100% { transform: translateX(calc(100vw + 100px)) translateY(0); }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
         @keyframes pulse {
           0%, 100% { transform: scale(1); opacity: 0.5; }
           50% { transform: scale(1.08); opacity: 0; }
-        }
-        @keyframes scan {
-          0%, 100% { transform: translateY(0); opacity: 0.15; }
-          50% { transform: translateY(20px); opacity: 0.4; }
         }
       `}</style>
     </div>
