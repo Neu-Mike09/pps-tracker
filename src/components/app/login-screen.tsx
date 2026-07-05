@@ -55,15 +55,6 @@ export function LoginScreen() {
       {/* Dark overlay for readability */}
       <div className="absolute inset-0 z-1 bg-gradient-to-b from-black/50 via-black/40 to-black/60" />
 
-      {/* Subtle grid overlay — precision agriculture tech feel */}
-      <div
-        className="absolute inset-0 z-1 opacity-[0.07]"
-        style={{
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
-          backgroundSize: "60px 60px",
-        }}
-      />
-
       {/* Glassmorphism login card */}
       <div className="relative z-10 w-full max-w-md">
         <div
