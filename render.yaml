@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: pps-tracker
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run render-start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        value: pps-tracker-secret-2026-change-me
+      - key: NODE_ENV
+        value: production
