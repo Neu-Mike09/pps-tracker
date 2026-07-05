@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useAppStore, ViewKey } from "@/lib/store";
 import { DashboardView } from "./views/dashboard";
 import { NewRecordView } from "./views/new-record";
@@ -35,6 +36,27 @@ export function AppShell() {
   const setUser = useAppStore((s) => s.setUser);
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
+  const badges = useAppStore((s) => s.badges);
+  const setBadges = useAppStore((s) => s.setBadges);
+
+  // Fetch badge counts on mount and refresh every 60 seconds
+  useEffect(() => {
+    const fetchBadges = async () => {
+      try {
+        const res = await fetch("/api/dashboard");
+        if (!res.ok) return;
+        const data = await res.json();
+        setBadges({
+          overdue: data.overdue || 0,
+          upcoming: data.upcoming?.length || 0,
+          syncFailed: data.pendingSync || 0,
+        });
+      } catch {}
+    };
+    fetchBadges();
+    const interval = setInterval(fetchBadges, 60000);
+    return () => clearInterval(interval);
+  }, [setBadges]);
 
   const handleLogout = async () => {
     try { localStorage.setItem("pps_logged_out", "1"); } catch {}
@@ -75,6 +97,14 @@ export function AppShell() {
             const isActive = view === item.key;
             const isAdminOnly = item.key === "settings";
             const disabled = isAdminOnly && user?.role !== "admin";
+
+            // Badge counts per nav item
+            let badgeCount = 0;
+            let badgeColor = "";
+            if (item.key === "records") { badgeCount = badges.overdue; badgeColor = "bg-red-500"; }
+            else if (item.key === "calendar") { badgeCount = badges.upcoming; badgeColor = "bg-amber-500"; }
+            else if (item.key === "settings") { badgeCount = badges.syncFailed; badgeColor = "bg-orange-500"; }
+
             return (
               <button
                 key={item.key}
@@ -88,8 +118,13 @@ export function AppShell() {
                   disabled && "opacity-30 cursor-not-allowed"
                 )}
               >
-                <Icon className="w-4 h-4" />
-                {item.label}
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1 text-left">{item.label}</span>
+                {badgeCount > 0 && (
+                  <span className={`flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold text-white ${badgeColor}`}>
+                    {badgeCount > 99 ? "99+" : badgeCount}
+                  </span>
+                )}
               </button>
             );
           })}

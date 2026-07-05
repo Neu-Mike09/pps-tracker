@@ -34,6 +34,10 @@ interface AppState {
   // Edit target (for records view - when editing a specific record)
   editId: string | null;
   setEditId: (id: string | null) => void;
+
+  // Notification badges
+  badges: { overdue: number; upcoming: number; syncFailed: number };
+  setBadges: (b: { overdue: number; upcoming: number; syncFailed: number }) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -50,4 +54,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   editId: null,
   setEditId: (id) => set({ editId: id }),
+
+  badges: { overdue: 0, upcoming: 0, syncFailed: 0 },
+  setBadges: (b) => set({ badges: b }),
 }));
