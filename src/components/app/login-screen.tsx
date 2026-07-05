@@ -83,7 +83,7 @@ export function LoginScreen() {
 
       {/* Loading spinner — shown until video is ready */}
       {!cardVisible && (
-        <div className="relative z-10 flex flex-col items-center gap-3">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3">
           <Loader2 className="w-8 h-8 text-emerald-300 animate-spin" />
           <p className="text-xs text-emerald-200/60 tracking-wider">Loading…</p>
         </div>
