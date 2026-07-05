@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,30 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
+  const [cardVisible, setCardVisible] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Wait for video to be ready, then show everything together
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleCanPlay = () => {
+      setVideoReady(true);
+      // Small delay so the video frame is actually painted before card fades in
+      setTimeout(() => setCardVisible(true), 100);
+      video.play().catch(() => {});
+    };
+
+    if (video.readyState >= 2) {
+      handleCanPlay();
+    } else {
+      video.addEventListener("canplay", handleCanPlay);
+    }
+
+    return () => video.removeEventListener("canplay", handleCanPlay);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,12 +66,14 @@ export function LoginScreen() {
     <div className="relative min-h-screen overflow-hidden flex items-center justify-center p-4">
       {/* Real-world agriculture video background */}
       <video
-        autoPlay
+        ref={videoRef}
         loop
         muted
         playsInline
+        autoPlay
+        poster="/agri-poster.jpg"
         className="absolute inset-0 w-full h-full object-cover z-0"
-        poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'%3E%3Crect width='16' height='9' fill='%231a3c2e'/%3E%3C/svg%3E"
+        style={{ opacity: videoReady ? 1 : 0, transition: "opacity 0.4s ease-in" }}
       >
         <source src="/agri-bg.mp4" type="video/mp4" />
       </video>
@@ -55,8 +81,18 @@ export function LoginScreen() {
       {/* Dark overlay for readability */}
       <div className="absolute inset-0 z-1 bg-gradient-to-b from-black/50 via-black/40 to-black/60" />
 
-      {/* Glassmorphism login card */}
-      <div className="relative z-10 w-full max-w-md">
+      {/* Loading spinner — shown until video is ready */}
+      {!cardVisible && (
+        <div className="relative z-10 flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-emerald-300 animate-spin" />
+          <p className="text-xs text-emerald-200/60 tracking-wider">Loading…</p>
+        </div>
+      )}
+
+      {/* Glassmorphism login card — fades in when video is ready */}
+      <div
+        className={`relative z-10 w-full max-w-md transition-all duration-500 ${cardVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+      >
         <div
           className="rounded-2xl border border-white/20 shadow-2xl p-8"
           style={{
@@ -72,7 +108,6 @@ export function LoginScreen() {
                 <div className="w-20 h-20 rounded-2xl bg-emerald-500/30 border border-emerald-300/30 flex items-center justify-center shadow-lg">
                   <Sprout className="w-10 h-10 text-emerald-100" />
                 </div>
-                {/* Pulsing ring around logo */}
                 <div className="absolute inset-0 rounded-2xl border-2 border-emerald-300/40" style={{ animation: "pulse 2s ease-in-out infinite" }} />
               </div>
             </div>
@@ -140,7 +175,6 @@ export function LoginScreen() {
             </Button>
           </form>
 
-          {/* Bottom tech tagline */}
           <div className="mt-6 text-center">
             <p className="text-[10px] text-emerald-200/40 tracking-wider uppercase">
               Digital Agriculture • Precision Farming • Smart Tracking
@@ -149,7 +183,6 @@ export function LoginScreen() {
         </div>
       </div>
 
-      {/* Pulse animation */}
       <style jsx global>{`
         @keyframes pulse {
           0%, 100% { transform: scale(1); opacity: 0.5; }
