@@ -109,6 +109,16 @@ const fmtDate = (s: string | null): string => {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 };
 
+// Convert "16:00" (24-hour HH:MM) to "4:00 PM" (12-hour)
+const fmtTime12 = (time24: string | null): string => {
+  if (!time24) return "";
+  const [h, m] = time24.split(":").map(Number);
+  if (isNaN(h)) return time24;
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m || 0).padStart(2, "0")} ${period}`;
+};
+
 export function RecordsView() {
   const { toast } = useToast();
   const setView = useAppStore((s) => s.setView);
@@ -520,7 +530,7 @@ export function RecordsView() {
                             {r.activityDateTime && (
                               <div className="text-[10px] text-slate-500">
                                 {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
-                                {r.activityEndTime ? ` - ${r.activityEndTime}` : ""}
+                                {r.activityEndTime ? ` - ${fmtTime12(r.activityEndTime)}` : ""}
                               </div>
                             )}
                           </td>
@@ -595,7 +605,7 @@ export function RecordsView() {
                       </div>
                       {r.activityDateTime && (
                         <div>
-                          Activity: {fmtDate(r.activityDateTime)} {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}{r.activityEndTime ? ` - ${r.activityEndTime}` : ""}
+                          Activity: {fmtDate(r.activityDateTime)} {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}{r.activityEndTime ? ` - ${fmtTime12(r.activityEndTime)}` : ""}
                         </div>
                       )}
                     </div>
