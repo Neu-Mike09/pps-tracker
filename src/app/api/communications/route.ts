@@ -159,6 +159,7 @@ export async function POST(req: NextRequest) {
       year,
       priority: body.priority || null,
       activityDateTime: parseDate(body.activityDateTime),
+      activityEndTime: body.activityEndTime || null,
       photoPath: body.photoPath || null,
       syncStatus: "pending",
       calendarSyncStatus: "pending",

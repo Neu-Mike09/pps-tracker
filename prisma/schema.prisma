@@ -39,6 +39,7 @@ model Communication {
   year             Int
   priority         String?
   activityDateTime DateTime?
+  activityEndTime   String?  // end time for activities with time ranges (e.g., "16:00")
   photoPath        String?
   sheetSyncedAt    DateTime?
   syncStatus       String   @default("pending")

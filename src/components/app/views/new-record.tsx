@@ -43,6 +43,7 @@ interface ExtractedData {
   referenceNo: string | null;
   activityCategorySuggestion: string | null;
   activityDateTimeSuggestion: string | null;
+  activityEndTimeSuggestion: string | null;
   targetDateSuggestion: string | null;
   prioritySuggestion: string | null;
   rawText: string;
@@ -66,6 +67,7 @@ interface FormState {
   remarks: string | null;
   priority: string | null;
   activityDateTime: string | null;
+  activityEndTime: string | null;
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -155,6 +157,7 @@ export function NewRecordView() {
     remarks: null,
     priority: "Normal",
     activityDateTime: null,
+    activityEndTime: null,
   });
 
   const update = (k: keyof FormState, v: string | null) => {
@@ -203,6 +206,7 @@ export function NewRecordView() {
         referenceNo: ext2.referenceNo,
         activityCategory: ext2.activityCategorySuggestion,
         activityDateTime: toLocalDateTime(ext2.activityDateTimeSuggestion),
+        activityEndTime: ext2.activityEndTimeSuggestion || null,
         targetDate: toLocalDate(ext2.targetDateSuggestion),
         priority: ext2.prioritySuggestion || "Normal",
       }));
@@ -254,6 +258,7 @@ export function NewRecordView() {
         targetDate: null, dateCompleted: null, status: "Pending",
         activityCategory: null, remarks: null, priority: "Normal",
         activityDateTime: null,
+    activityEndTime: null,
       });
       setExtracted(null);
       setExtractError(null);
@@ -281,6 +286,7 @@ export function NewRecordView() {
       targetDate: null, dateCompleted: null, status: "Pending",
       activityCategory: null, remarks: null, priority: "Normal",
       activityDateTime: null,
+    activityEndTime: null,
     });
     setExtracted(null);
     setExtractError(null);
@@ -562,13 +568,18 @@ export function NewRecordView() {
                   <Field label="Target Date (Deadline)">
                     <Input type="date" value={form.targetDate || ""} onChange={(e) => update("targetDate", e.target.value || null)} />
                   </Field>
-                  <Field label="Activity Date & Time">
+                  <Field label="Activity Date & Start Time">
                     <Input type="datetime-local" value={form.activityDateTime || ""} onChange={(e) => update("activityDateTime", e.target.value || null)} />
                   </Field>
                 </div>
-                <Field label="Date Completed (if done)">
-                  <Input type="date" value={form.dateCompleted || ""} onChange={(e) => update("dateCompleted", e.target.value || null)} />
-                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Activity End Time (if range)">
+                    <Input type="time" value={form.activityEndTime || ""} onChange={(e) => update("activityEndTime", e.target.value || null)} />
+                  </Field>
+                  <Field label="Date Completed (if done)">
+                    <Input type="date" value={form.dateCompleted || ""} onChange={(e) => update("dateCompleted", e.target.value || null)} />
+                  </Field>
+                </div>
                 <Field label="Remarks / Action Taken">
                   <Textarea value={form.remarks || ""} onChange={(e) => update("remarks", e.target.value || null)} placeholder="Notes, action taken, or disposition" rows={2} />
                 </Field>

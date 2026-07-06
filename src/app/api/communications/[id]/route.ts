@@ -45,7 +45,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.activityCategory !== undefined) data.activityCategory = body.activityCategory;
   if (body.remarks !== undefined) data.remarks = body.remarks;
   if (body.priority !== undefined) data.priority = body.priority;
-  if (body.activityDateTime !== undefined) data.activityDateTime = parseDate(body.activityDateTime);
+  if (body.activityDateTime !== undefined) {
+    const v = body.activityDateTime;
+    if (!v || v === "") {
+      data.activityDateTime = null;
+    } else {
+      const d = new Date(v);
+      data.activityDateTime = isNaN(d.getTime()) ? null : d;
+    }
+  }
+  if (body.activityEndTime !== undefined) data.activityEndTime = body.activityEndTime || null;
   if (body.photoPath !== undefined) data.photoPath = body.photoPath;
 
   const record = await db.communication.update({ where: { id }, data });

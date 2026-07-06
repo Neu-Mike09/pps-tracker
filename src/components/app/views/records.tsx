@@ -80,6 +80,7 @@ interface Record {
   year: number;
   priority: string | null;
   activityDateTime: string | null;
+  activityEndTime: string | null;
   photoPath: string | null;
   syncStatus: string;
   syncError: string | null;
@@ -265,6 +266,7 @@ export function RecordsView() {
           remarks: updated.remarks,
           priority: updated.priority,
           activityDateTime: updated.activityDateTime,
+          activityEndTime: updated.activityEndTime,
         }),
       });
       const data = await res.json();
@@ -518,6 +520,7 @@ export function RecordsView() {
                             {r.activityDateTime && (
                               <div className="text-[10px] text-slate-500">
                                 {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                                {r.activityEndTime ? ` - ${r.activityEndTime}` : ""}
                               </div>
                             )}
                           </td>
@@ -592,7 +595,7 @@ export function RecordsView() {
                       </div>
                       {r.activityDateTime && (
                         <div>
-                          Activity: {fmtDate(r.activityDateTime)} {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                          Activity: {fmtDate(r.activityDateTime)} {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}{r.activityEndTime ? ` - ${r.activityEndTime}` : ""}
                         </div>
                       )}
                     </div>
@@ -929,7 +932,7 @@ function EditRecordDialog({
               <Input type="date" value={form.targetDate?.slice(0, 10) || ""} onChange={(e) => update("targetDate", e.target.value || null)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Activity Date & Time</Label>
+              <Label className="text-xs">Activity Date & Start Time</Label>
               <Input
                 type="datetime-local"
                 value={form.activityDateTime ? toLocalDateTimeInput(form.activityDateTime) : ""}
@@ -938,6 +941,10 @@ function EditRecordDialog({
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Activity End Time</Label>
+              <Input type="time" value={form.activityEndTime || ""} onChange={(e) => update("activityEndTime", e.target.value || null)} />
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Date Completed</Label>
               <Input type="date" value={form.dateCompleted?.slice(0, 10) || ""} onChange={(e) => update("dateCompleted", e.target.value || null)} />
