@@ -199,24 +199,39 @@ export function NewRecordView() {
       const ext2: ExtractedData = extractData.extracted as ExtractedData;
       setExtracted(ext2);
 
+      // Check if extraction actually returned any usable data
+      const hasData = ext2 && (
+        ext2.documentType || ext2.dateOfDocument || ext2.fromOffice ||
+        ext2.subject || ext2.referenceNo || ext2.activityCategorySuggestion ||
+        ext2.activityDateTimeSuggestion || ext2.targetDateSuggestion || ext2.prioritySuggestion
+      );
+
       setForm((f) => ({
         ...f,
         photoPath,
         photoPreview: previewUrl,
         timeReceived: nowTimeStr(),
-        dateOfDocument: toLocalDate(ext2.dateOfDocument),
-        documentType: ext2.documentType,
-        fromOffice: ext2.fromOffice,
-        subject: ext2.subject,
-        referenceNo: ext2.referenceNo,
-        activityCategory: ext2.activityCategorySuggestion,
-        activityDateTime: toLocalDateTime(ext2.activityDateTimeSuggestion),
-        activityEndTime: ext2.activityEndTimeSuggestion || null,
-        targetDate: toLocalDate(ext2.targetDateSuggestion),
-        priority: ext2.prioritySuggestion || "Normal",
+        dateOfDocument: toLocalDate(ext2?.dateOfDocument),
+        documentType: ext2?.documentType || null,
+        fromOffice: ext2?.fromOffice || null,
+        subject: ext2?.subject || null,
+        referenceNo: ext2?.referenceNo || null,
+        activityCategory: ext2?.activityCategorySuggestion || null,
+        activityDateTime: toLocalDateTime(ext2?.activityDateTimeSuggestion),
+        activityEndTime: ext2?.activityEndTimeSuggestion || null,
+        targetDate: toLocalDate(ext2?.targetDateSuggestion),
+        priority: ext2?.prioritySuggestion || "Normal",
       }));
 
-      toast({ title: "Extraction complete", description: "Please review the extracted fields before saving." });
+      if (hasData) {
+        toast({ title: "Extraction complete", description: "Fields above are auto-filled. Please review and fill in the remaining fields (Assigned To, Target Date, Status, Priority)." });
+      } else {
+        toast({
+          title: "Extraction completed but no data extracted",
+          description: "The AI could not read the document fields. Please fill in the form manually, or click 'Show extracted text' to see what was read.",
+          variant: "destructive",
+        });
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setExtractError(msg);

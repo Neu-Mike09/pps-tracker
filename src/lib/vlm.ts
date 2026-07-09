@@ -50,10 +50,10 @@ export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fil
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Allow model override via env var (default: gemini-flash-latest).
-    // On a Pro/paid account, this works without daily quota limits.
-    // On free tier, gemini-flash-latest has a 20-req/day limit.
-    const modelName = process.env.GEMINI_MODEL || "gemini-flash-latest";
+    // Use gemini-2.5-flash as default (stable model on both free and Pro tiers).
+    // The "gemini-flash-latest" alias can resolve to different models and may
+    // not always support responseMimeType correctly.
+    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: { responseMimeType: "application/json" },
@@ -76,12 +76,57 @@ export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fil
     }
 
     const content = result.response.text();
-    const jsonStr = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-    try { return JSON.parse(jsonStr) as ExtractedData; } catch {
-      const match = content.match(/\{[\s\S]*\}/);
-      if (match) { try { return JSON.parse(match[0]) as ExtractedData; } catch {} }
+
+    // Robust JSON parsing — handle multiple response formats
+    let parsed: ExtractedData | null = null;
+
+    // Attempt 1: Direct parse (responseMimeType should force pure JSON)
+    try {
+      parsed = JSON.parse(content) as ExtractedData;
+    } catch {
+      // Attempt 2: Strip markdown code fences (```json ... ```)
+      const stripped = content
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+      try {
+        parsed = JSON.parse(stripped) as ExtractedData;
+      } catch {
+        // Attempt 3: Extract first JSON object using regex
+        const match = content.match(/\{[\s\S]*\}/);
+        if (match) {
+          try {
+            parsed = JSON.parse(match[0]) as ExtractedData;
+          } catch {
+            // All parsing attempts failed
+          }
+        }
+      }
+    }
+
+    // If parsing failed, return empty result with raw text for debugging
+    if (!parsed) {
+      console.error("[VLM] Failed to parse Gemini response as JSON. Raw content:", content.slice(0, 500));
       return getEmptyResult(content);
     }
+
+    // Normalize: ensure all fields exist (Gemini might omit null fields)
+    const result_data: ExtractedData = {
+      documentType: parsed.documentType ?? null,
+      dateOfDocument: parsed.dateOfDocument ?? null,
+      fromOffice: parsed.fromOffice ?? null,
+      subject: parsed.subject ?? null,
+      referenceNo: parsed.referenceNo ?? null,
+      activityCategorySuggestion: parsed.activityCategorySuggestion ?? null,
+      activityDateTimeSuggestion: parsed.activityDateTimeSuggestion ?? null,
+      activityEndTimeSuggestion: parsed.activityEndTimeSuggestion ?? null,
+      targetDateSuggestion: parsed.targetDateSuggestion ?? null,
+      prioritySuggestion: parsed.prioritySuggestion ?? null,
+      rawText: parsed.rawText || content,
+    };
+
+    return result_data;
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e);
     // Detect quota exceeded and provide a more helpful message
