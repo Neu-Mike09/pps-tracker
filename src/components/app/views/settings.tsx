@@ -76,6 +76,10 @@ export function SettingsView() {
   const [calendarResyncing, setCalendarResyncing] = useState(false);
   const [calendarResyncResult, setCalendarResyncResult] = useState<{ total: number; success: number; failed: number; skipped: number; errors: Array<{ controlNo: string; error: string }> } | null>(null);
 
+  // Sheets re-sync
+  const [sheetsResyncing, setSheetsResyncing] = useState(false);
+  const [sheetsResyncResult, setSheetsResyncResult] = useState<{ total: number; success: number; failed: number; skipped: number; appended: number; updated: number; errors: Array<{ controlNo: string; error: string }> } | null>(null);
+
   // Users
   const [users, setUsers] = useState<UserRow[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -193,6 +197,25 @@ export function SettingsView() {
     } catch (e) {
       toast({ title: "Re-sync failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally { setCalendarResyncing(false); }
+  };
+
+  const handleSheetsResync = async () => {
+    setSheetsResyncing(true);
+    setSheetsResyncResult(null);
+    try {
+      const res = await fetch("/api/sheets-resync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Re-sync failed");
+      setSheetsResyncResult(data);
+      const summary = `${data.success} synced (${data.appended} new, ${data.updated} updated), ${data.failed} failed (out of ${data.total}).`;
+      toast({
+        title: data.failed > 0 ? "Sheets re-sync complete (with issues)" : "Sheets re-sync complete",
+        description: summary,
+        variant: data.failed > 0 ? "destructive" : "default",
+      });
+    } catch (e) {
+      toast({ title: "Sheets re-sync failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally { setSheetsResyncing(false); }
   };
 
   const loadOptions = async () => {
@@ -463,6 +486,42 @@ export function SettingsView() {
               Test Connection
             </Button>
           </div>
+
+          {/* Re-sync all records to Sheets */}
+          {settings?.configured && (
+            <div className="border-t border-slate-200 pt-4 mt-2">
+              <div className="text-sm font-medium text-slate-900 mb-1">Re-sync all records to Google Sheets</div>
+              <div className="text-xs text-slate-500 mb-3">
+                Use this after connecting a new Google Sheet (or after column layout changes) to push all existing records from the app into the sheet.
+                Existing rows are matched by Control No. and overwritten; missing rows are appended at the end.
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleSheetsResync}
+                disabled={sheetsResyncing}
+                className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              >
+                {sheetsResyncing
+                  ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Syncing…</>
+                  : <><RefreshCw className="w-4 h-4 mr-1" /> Re-sync All Records to Sheets</>}
+              </Button>
+              {sheetsResyncResult && (
+                <div className={`mt-3 p-3 rounded-md text-sm ${sheetsResyncResult.failed > 0 ? "bg-amber-50 border border-amber-200 text-amber-800" : "bg-emerald-50 border border-emerald-200 text-emerald-800"}`}>
+                  <div className="font-medium">
+                    Re-sync complete: {sheetsResyncResult.success} synced ({sheetsResyncResult.appended} new, {sheetsResyncResult.updated} updated), {sheetsResyncResult.failed} failed (out of {sheetsResyncResult.total})
+                  </div>
+                  {sheetsResyncResult.errors.length > 0 && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-xs">View {sheetsResyncResult.errors.length} error(s)</summary>
+                      <ul className="list-disc ml-4 mt-1 text-xs space-y-0.5">
+                        {sheetsResyncResult.errors.map((err, i) => (<li key={i}>{err.controlNo}: {err.error}</li>))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Setup instructions */}
           <details className="text-sm">
