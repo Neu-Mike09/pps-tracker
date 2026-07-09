@@ -1,0 +1,877 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useState } from "react";
+     4→import { Button } from "@/components/ui/button";
+     5→import { Input } from "@/components/ui/input";
+     6→import { Label } from "@/components/ui/label";
+     7→import { Textarea } from "@/components/ui/textarea";
+     8→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+     9→import { Badge } from "@/components/ui/badge";
+    10→import {
+    11→  Select,
+    12→  SelectContent,
+    13→  SelectItem,
+    14→  SelectTrigger,
+    15→  SelectValue,
+    16→} from "@/components/ui/select";
+    17→import {
+    18→  Dialog,
+    19→  DialogContent,
+    20→  DialogHeader,
+    21→  DialogTitle,
+    22→} from "@/components/ui/dialog";
+    23→import {
+    24→  Sheet,
+    25→  Calendar as CalendarIcon,
+    26→  Users,
+    27→  Settings,
+    28→  Save,
+    29→  Loader2,
+    30→  CheckCircle2,
+    31→  XCircle,
+    32→  Plus,
+    33→  Edit3,
+    34→  Trash2,
+    35→  Shield,
+    36→  ShieldCheck,
+    37→  ExternalLink,
+    38→  AlertCircle,
+    39→  RefreshCw,
+    40→} from "lucide-react";
+    41→import { useToast } from "@/hooks/use-toast";
+    42→import { useAppStore } from "@/lib/store";
+    43→
+    44→interface Settings {
+    45→  configured: boolean;
+    46→  spreadsheetId: string;
+    47→  clientEmail: string;
+    48→  privateKey: string;
+    49→  sheetName: string;
+    50→}
+    51→
+    52→interface UserRow {
+    53→  id: string;
+    54→  username: string;
+    55→  name: string;
+    56→  role: string;
+    57→  active: boolean;
+    58→  createdAt: string;
+    59→}
+    60→
+    61→export function SettingsView() {
+    62→  const { toast } = useToast();
+    63→  const currentUser = useAppStore((s) => s.user);
+    64→  const [settings, setSettings] = useState<Settings | null>(null);
+    65→  const [loading, setLoading] = useState(true);
+    66→  const [saving, setSaving] = useState(false);
+    67→  const [testing, setTesting] = useState(false);
+    68→  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+    69→
+    70→  // Calendar
+    71→  const [calendarId, setCalendarId] = useState("primary");
+    72→  const [calendarLoading, setCalendarLoading] = useState(true);
+    73→  const [calendarSaving, setCalendarSaving] = useState(false);
+    74→  const [calendarTesting, setCalendarTesting] = useState(false);
+    75→  const [calendarTestResult, setCalendarTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+    76→  const [calendarResyncing, setCalendarResyncing] = useState(false);
+    77→  const [calendarResyncResult, setCalendarResyncResult] = useState<{ total: number; success: number; failed: number; skipped: number; errors: Array<{ controlNo: string; error: string }> } | null>(null);
+    78→
+    79→  // Users
+    80→  const [users, setUsers] = useState<UserRow[]>([]);
+    81→  const [usersLoading, setUsersLoading] = useState(true);
+    82→  const [showUserDialog, setShowUserDialog] = useState(false);
+    83→  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+    84→
+    85→  // Dropdown options
+    86→  const [dropdownOptions, setDropdownOptions] = useState<{ assignedTo: string[]; status: string[]; activityCategory: string[]; sender: string[] }>({ assignedTo: [], status: [], activityCategory: [], sender: [] });
+    87→  const [optionsLoading, setOptionsLoading] = useState(true);
+    88→
+    89→  const loadSettings = async () => {
+    90→    setLoading(true);
+    91→    try {
+    92→      const res = await fetch("/api/settings");
+    93→      if (res.status === 401) {
+    94→        setSettings({
+    95→          configured: false,
+    96→          spreadsheetId: "",
+    97→          clientEmail: "",
+    98→          privateKey: "",
+    99→          sheetName: "Incoming Communications",
+   100→        });
+   101→        return;
+   102→      }
+   103→      const data = await res.json();
+   104→      // Defensive: ensure required fields exist
+   105→      setSettings({
+   106→        configured: Boolean(data.configured),
+   107→        spreadsheetId: data.spreadsheetId || "",
+   108→        clientEmail: data.clientEmail || "",
+   109→        privateKey: data.privateKey || "",
+   110→        sheetName: data.sheetName || "Incoming Communications",
+   111→      });
+   112→    } catch {
+   113→      setSettings({
+   114→        configured: false,
+   115→        spreadsheetId: "",
+   116→        clientEmail: "",
+   117→        privateKey: "",
+   118→        sheetName: "Incoming Communications",
+   119→      });
+   120→    } finally {
+   121→      setLoading(false);
+   122→    }
+   123→  };
+   124→
+   125→  const loadUsers = async () => {
+   126→    setUsersLoading(true);
+   127→    try {
+   128→      const res = await fetch("/api/users");
+   129→      if (res.status === 401) {
+   130→        setUsers([]);
+   131→        return;
+   132→      }
+   133→      const data = await res.json();
+   134→      setUsers(Array.isArray(data.users) ? data.users : []);
+   135→    } catch {
+   136→      setUsers([]);
+   137→    } finally {
+   138→      setUsersLoading(false);
+   139→    }
+   140→  };
+   141→
+   142→  const loadCalendarId = async () => {
+   143→    setCalendarLoading(true);
+   144→    try {
+   145→      const res = await fetch("/api/calendar-test", { method: "POST" });
+   146→      if (res.status === 401) { setCalendarId("primary"); return; }
+   147→      const data = await res.json();
+   148→      setCalendarId(data.calendarId || "primary");
+   149→    } catch { setCalendarId("primary"); }
+   150→    finally { setCalendarLoading(false); }
+   151→  };
+   152→
+   153→  const handleSaveCalendarId = async () => {
+   154→    setCalendarSaving(true);
+   155→    try {
+   156→      const res = await fetch("/api/calendar-test", {
+   157→        method: "PUT",
+   158→        headers: { "Content-Type": "application/json" },
+   159→        body: JSON.stringify({ calendarId }),
+   160→      });
+   161→      const data = await res.json();
+   162→      if (!res.ok) throw new Error(data.error || "Save failed");
+   163→      toast({ title: "Calendar ID saved" });
+   164→      setCalendarTestResult(null);
+   165→    } catch (e) {
+   166→      toast({ title: "Save failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+   167→    } finally { setCalendarSaving(false); }
+   168→  };
+   169→
+   170→  const handleTestCalendar = async () => {
+   171→    setCalendarTesting(true);
+   172→    setCalendarTestResult(null);
+   173→    try {
+   174→      const res = await fetch("/api/calendar-test", { method: "GET" });
+   175→      const data = await res.json();
+   176→      setCalendarTestResult(data);
+   177→      if (data.ok) toast({ title: "Calendar connected", description: data.message });
+   178→      else toast({ title: "Calendar connection failed", description: data.message, variant: "destructive" });
+   179→    } catch (e) {
+   180→      setCalendarTestResult({ ok: false, message: e instanceof Error ? e.message : String(e) });
+   181→    } finally { setCalendarTesting(false); }
+   182→  };
+   183→
+   184→  const handleResyncAll = async () => {
+   185→    setCalendarResyncing(true);
+   186→    setCalendarResyncResult(null);
+   187→    try {
+   188→      const res = await fetch("/api/calendar-resync", { method: "POST" });
+   189→      const data = await res.json();
+   190→      if (!res.ok) throw new Error(data.error || "Re-sync failed");
+   191→      setCalendarResyncResult(data);
+   192→      toast({ title: "Re-sync complete", description: `${data.success} synced, ${data.failed} failed, ${data.skipped} skipped (out of ${data.total}).` });
+   193→    } catch (e) {
+   194→      toast({ title: "Re-sync failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+   195→    } finally { setCalendarResyncing(false); }
+   196→  };
+   197→
+   198→  const loadOptions = async () => {
+   199→    setOptionsLoading(true);
+   200→    try {
+   201→      const res = await fetch("/api/options");
+   202→      if (res.ok) {
+   203→        const data = await res.json();
+   204→        setDropdownOptions(data);
+   205→      }
+   206→    } catch {}
+   207→    finally { setOptionsLoading(false); }
+   208→  };
+   209→
+   210→  const handleAddOption = async (category: string, value: string) => {
+   211→    try {
+   212→      const res = await fetch("/api/options", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category, value }) });
+   213→      const data = await res.json();
+   214→      if (!res.ok) throw new Error(data.error || "Failed to add option");
+   215→      toast({ title: "Option added", description: `"${value}" added to ${category}` });
+   216→      loadOptions();
+   217→    } catch (e) {
+   218→      toast({ title: "Failed to add option", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+   219→    }
+   220→  };
+   221→
+   222→  const handleDeleteOption = async (category: string, value: string) => {
+   223→    try {
+   224→      const res = await fetch(`/api/options?category=${category}&value=${encodeURIComponent(value)}`, { method: "DELETE" });
+   225→      const data = await res.json();
+   226→      if (!res.ok) throw new Error(data.error || "Failed to delete option");
+   227→      toast({ title: "Option removed", description: `"${value}" removed from ${category}` });
+   228→      loadOptions();
+   229→    } catch (e) {
+   230→      toast({ title: "Failed to delete option", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+   231→    }
+   232→  };
+   233→
+   234→  useEffect(() => {
+   235→    loadSettings();
+   236→    loadUsers();
+   237→    loadCalendarId();
+   238→    loadOptions();
+   239→  }, []);
+   240→
+   241→  const handleSaveSettings = async () => {
+   242→    if (!settings) return;
+   243→    setSaving(true);
+   244→    try {
+   245→      const res = await fetch("/api/settings", {
+   246→        method: "PUT",
+   247→        headers: { "Content-Type": "application/json" },
+   248→        body: JSON.stringify({
+   249→          spreadsheetId: settings.spreadsheetId,
+   250→          clientEmail: settings.clientEmail,
+   251→          privateKey: settings.privateKey,
+   252→          sheetName: settings.sheetName,
+   253→        }),
+   254→      });
+   255→      const data = await res.json();
+   256→      if (!res.ok) throw new Error(data.error || "Save failed");
+   257→      toast({ title: "Settings saved" });
+   258→      setTestResult(null);
+   259→      loadSettings();
+   260→    } catch (e) {
+   261→      toast({
+   262→        title: "Save failed",
+   263→        description: e instanceof Error ? e.message : String(e),
+   264→        variant: "destructive",
+   265→      });
+   266→    } finally {
+   267→      setSaving(false);
+   268→    }
+   269→  };
+   270→
+   271→  const handleTest = async () => {
+   272→    setTesting(true);
+   273→    setTestResult(null);
+   274→    try {
+   275→      const res = await fetch("/api/settings", { method: "POST" });
+   276→      const data = await res.json();
+   277→      setTestResult(data);
+   278→      if (data.ok) {
+   279→        toast({ title: "Connection OK", description: data.message });
+   280→      } else {
+   281→        toast({
+   282→          title: "Connection failed",
+   283→          description: data.message,
+   284→          variant: "destructive",
+   285→        });
+   286→      }
+   287→    } catch (e) {
+   288→      setTestResult({ ok: false, message: e instanceof Error ? e.message : String(e) });
+   289→    } finally {
+   290→      setTesting(false);
+   291→    }
+   292→  };
+   293→
+   294→  const handleSaveUser = async (user: {
+   295→    id?: string;
+   296→    username: string;
+   297→    name: string;
+   298→    password: string;
+   299→    role: string;
+   300→    active: boolean;
+   301→  }) => {
+   302→    try {
+   303→      if (user.id) {
+   304→        const res = await fetch(`/api/users/${user.id}`, {
+   305→          method: "PATCH",
+   306→          headers: { "Content-Type": "application/json" },
+   307→          body: JSON.stringify(user),
+   308→        });
+   309→        const data = await res.json();
+   310→        if (!res.ok) throw new Error(data.error || "Update failed");
+   311→        toast({ title: "User updated" });
+   312→      } else {
+   313→        const res = await fetch("/api/users", {
+   314→          method: "POST",
+   315→          headers: { "Content-Type": "application/json" },
+   316→          body: JSON.stringify(user),
+   317→        });
+   318→        const data = await res.json();
+   319→        if (!res.ok) throw new Error(data.error || "Create failed");
+   320→        toast({ title: "User created" });
+   321→      }
+   322→      setShowUserDialog(false);
+   323→      setEditingUser(null);
+   324→      loadUsers();
+   325→    } catch (e) {
+   326→      toast({
+   327→        title: "Save failed",
+   328→        description: e instanceof Error ? e.message : String(e),
+   329→        variant: "destructive",
+   330→      });
+   331→    }
+   332→  };
+   333→
+   334→  const handleDeleteUser = async (id: string) => {
+   335→    if (!confirm("Delete this user? This cannot be undone.")) return;
+   336→    try {
+   337→      const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
+   338→      if (!res.ok) {
+   339→        const data = await res.json();
+   340→        throw new Error(data.error || "Delete failed");
+   341→      }
+   342→      toast({ title: "User deleted" });
+   343→      loadUsers();
+   344→    } catch (e) {
+   345→      toast({
+   346→        title: "Delete failed",
+   347→        description: e instanceof Error ? e.message : String(e),
+   348→        variant: "destructive",
+   349→      });
+   350→    }
+   351→  };
+   352→
+   353→  if (currentUser?.role !== "admin") {
+   354→    return (
+   355→      <Card>
+   356→        <CardContent className="py-12 text-center text-slate-500">
+   357→          <Shield className="w-12 h-12 mx-auto mb-3 opacity-40" />
+   358→          <div>Admin access required.</div>
+   359→        </CardContent>
+   360→      </Card>
+   361→    );
+   362→  }
+   363→
+   364→  if (loading || !settings) {
+   365→    return (
+   366→      <div className="flex items-center justify-center py-12">
+   367→        <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+   368→      </div>
+   369→    );
+   370→  }
+   371→
+   372→  return (
+   373→    <div className="space-y-6 max-w-4xl mx-auto">
+   374→      <div>
+   375→        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+   376→        <p className="text-sm text-slate-500">
+   377→          Configure Google Sheets sync and manage user accounts.
+   378→        </p>
+   379→      </div>
+   380→
+   381→      {/* Google Sheets */}
+   382→      <Card>
+   383→        <CardHeader>
+   384→          <CardTitle className="text-base flex items-center gap-2">
+   385→            <Sheet className="w-4 h-4 text-emerald-600" />
+   386→            Google Sheets Sync
+   387→          </CardTitle>
+   388→          <CardDescription>
+   389→            Records are automatically appended to your Google Sheet on save. Uses a Google Service Account.
+   390→          </CardDescription>
+   391→        </CardHeader>
+   392→        <CardContent className="space-y-4">
+   393→          {settings.configured ? (
+   394→            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-md text-sm text-emerald-800">
+   395→              <CheckCircle2 className="w-4 h-4" />
+   396→              Google Sheets is configured. New records will sync automatically.
+   397→            </div>
+   398→          ) : (
+   399→            <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+   400→              <XCircle className="w-4 h-4" />
+   401→              Not configured. Records will save locally only.
+   402→            </div>
+   403→          )}
+   404→
+   405→          <div className="space-y-1.5">
+   406→            <Label className="text-xs">Spreadsheet ID</Label>
+   407→            <Input
+   408→              value={settings.spreadsheetId}
+   409→              onChange={(e) => setSettings({ ...settings, spreadsheetId: e.target.value })}
+   410→              placeholder="e.g. 1ABC...xyz (from the Sheet URL)"
+   411→            />
+   412→            <p className="text-[11px] text-slate-500">
+   413→              Found in your Sheet URL: docs.google.com/spreadsheets/d/<strong>&lt;this-part&gt;</strong>/edit
+   414→            </p>
+   415→          </div>
+   416→
+   417→          <div className="space-y-1.5">
+   418→            <Label className="text-xs">Service Account Email</Label>
+   419→            <Input
+   420→              value={settings.clientEmail}
+   421→              onChange={(e) => setSettings({ ...settings, clientEmail: e.target.value })}
+   422→              placeholder="e.g. pps-tracker@your-project.iam.gserviceaccount.com"
+   423→            />
+   424→          </div>
+   425→
+   426→          <div className="space-y-1.5">
+   427→            <Label className="text-xs">Service Account Private Key</Label>
+   428→            <Textarea
+   429→              value={settings.privateKey === "***configured***" ? "" : settings.privateKey}
+   430→              onChange={(e) => setSettings({ ...settings, privateKey: e.target.value })}
+   431→              placeholder={settings.configured ? "(already set - paste new key to replace)" : "Paste the full private_key from your JSON, including BEGIN/END lines"}
+   432→              rows={5}
+   433→              className="font-mono text-xs"
+   434→            />
+   435→            <p className="text-[11px] text-slate-500">
+   436→              From the JSON key file downloaded from Google Cloud Console. Keep the BEGIN/END PRIVATE KEY lines.
+   437→            </p>
+   438→          </div>
+   439→
+   440→          <div className="space-y-1.5">
+   441→            <Label className="text-xs">Sheet Name (tab name)</Label>
+   442→            <Input
+   443→              value={settings.sheetName}
+   444→              onChange={(e) => setSettings({ ...settings, sheetName: e.target.value })}
+   445→              placeholder="Incoming Communications"
+   446→            />
+   447→          </div>
+   448→
+   449→          {testResult && (
+   450→            <div className={`p-3 rounded-md text-sm ${testResult.ok ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-red-50 border border-red-200 text-red-800"}`}>
+   451→              {testResult.ok ? <CheckCircle2 className="w-4 h-4 inline mr-2" /> : <XCircle className="w-4 h-4 inline mr-2" />}
+   452→              {testResult.message}
+   453→            </div>
+   454→          )}
+   455→
+   456→          <div className="flex flex-wrap gap-2">
+   457→            <Button onClick={handleSaveSettings} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+   458→              {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+   459→              Save Settings
+   460→            </Button>
+   461→            <Button variant="outline" onClick={handleTest} disabled={testing || !settings.configured && !settings.spreadsheetId}>
+   462→              {testing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sheet className="w-4 h-4 mr-1" />}
+   463→              Test Connection
+   464→            </Button>
+   465→          </div>
+   466→
+   467→          {/* Setup instructions */}
+   468→          <details className="text-sm">
+   469→            <summary className="cursor-pointer text-emerald-700 hover:underline font-medium">
+   470→              How do I get these credentials?
+   471→            </summary>
+   472→            <ol className="list-decimal ml-5 mt-2 space-y-1 text-xs text-slate-600">
+   473→              <li>
+   474→                Go to{" "}
+   475→                <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-emerald-700 underline inline-flex items-center gap-0.5">
+   476→                  Google Cloud Console <ExternalLink className="w-3 h-3" />
+   477→                </a>{" "}
+   478→                and create or select a project.
+   479→              </li>
+   480→              <li>Enable the <strong>Google Sheets API</strong> (APIs & Services → Library → search "Google Sheets API" → Enable).</li>
+   481→              <li>Go to <strong>IAM & Admin → Service Accounts → Create Service Account</strong>. Give it any name (e.g. "pps-tracker").</li>
+   482→              <li>After creating, click <strong>Keys → Add Key → Create New Key → JSON</strong>. A JSON file will download.</li>
+   483→              <li>Open the JSON file. Copy the <code>client_email</code> and <code>private_key</code> values into the fields above.</li>
+   484→              <li>
+   485→                Open your Google Sheet and <strong>share</strong> it (Share button, top right) with the service account email,
+   486→                giving it <strong>Editor</strong> access.
+   487→              </li>
+   488→              <li>Copy the Spreadsheet ID from the Sheet URL and paste above.</li>
+   489→              <li>Click <strong>Save</strong> then <strong>Test Connection</strong>.</li>
+   490→            </ol>
+   491→          </details>
+   492→        </CardContent>
+   493→      </Card>
+   494→
+   495→      {/* Google Calendar */}
+   496→      <Card>
+   497→        <CardHeader>
+   498→          <CardTitle className="text-base flex items-center gap-2">
+   499→            <CalendarIcon className="w-4 h-4 text-emerald-600" />
+   500→            Google Calendar Sync
+   501→          </CardTitle>
+   502→          <CardDescription>
+   503→            Records with a Target Date or Activity Date automatically appear as events on your Google Calendar.
+   504→            Uses the same Service Account as Google Sheets.
+   505→          </CardDescription>
+   506→        </CardHeader>
+   507→        <CardContent className="space-y-4">
+   508→          <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800">
+   509→            <CalendarIcon className="w-4 h-4" />
+   510→            <div>
+   511→              Records are synced as calendar events:
+   512→              <ul className="list-disc ml-4 mt-1 text-xs">
+   513→                <li><strong>Activity Date/Time</strong> → timed event (1 hour)</li>
+   514→                <li><strong>Target Date only</strong> → all-day event</li>
+   515→                <li><strong>No dates</strong> → no calendar event (skipped)</li>
+   516→              </ul>
+   517→            </div>
+   518→          </div>
+   519→
+   520→          {settings?.configured ? (
+   521→            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-md text-sm text-emerald-800">
+   522→              <CheckCircle2 className="w-4 h-4" />
+   523→              Service Account is configured. Events will sync automatically.
+   524→            </div>
+   525→          ) : (
+   526→            <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+   527→              <XCircle className="w-4 h-4" />
+   528→              Configure the Google Service Account in the Google Sheets section above first.
+   529→            </div>
+   530→          )}
+   531→
+   532→          {calendarId === "primary" && (
+   533→            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-300 rounded-md text-sm text-amber-900">
+   534→              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+   535→              <div>
+   536→                <div className="font-medium">⚠️ "primary" = the Service Account's own calendar</div>
+   537→                <div className="mt-1 text-xs">
+   538→                  Events created on the Service Account's primary calendar are <strong>invisible to you</strong>.
+   539→                  To see events on YOUR calendar, share your personal Google Calendar with the Service Account email,
+   540→                  then enter YOUR calendar ID (e.g., <code>yourname@gmail.com</code>) below.
+   541→                </div>
+   542→              </div>
+   543→            </div>
+   544→          )}
+   545→
+   546→          <div className="space-y-1.5">
+   547→            <Label className="text-xs">Calendar ID</Label>
+   548→            <Input value={calendarId} onChange={(e) => setCalendarId(e.target.value)} placeholder="primary" disabled={calendarLoading} />
+   549→            <p className="text-[11px] text-slate-500">
+   550→              Use <code>primary</code> for the Service Account's own calendar, or paste your personal calendar ID
+   551→              (e.g., <code>yourname@gmail.com</code>).
+   552→            </p>
+   553→          </div>
+   554→
+   555→          {calendarTestResult && (
+   556→            <div className={`p-3 rounded-md text-sm ${calendarTestResult.ok ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-red-50 border border-red-200 text-red-800"}`}>
+   557→              {calendarTestResult.ok ? <CheckCircle2 className="w-4 h-4 inline mr-2" /> : <XCircle className="w-4 h-4 inline mr-2" />}
+   558→              {calendarTestResult.message}
+   559→            </div>
+   560→          )}
+   561→
+   562→          <div className="flex flex-wrap gap-2">
+   563→            <Button onClick={handleSaveCalendarId} disabled={calendarSaving} className="bg-emerald-600 hover:bg-emerald-700">
+   564→              {calendarSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+   565→              Save Calendar ID
+   566→            </Button>
+   567→            <Button variant="outline" onClick={handleTestCalendar} disabled={calendarTesting || !settings?.configured}>
+   568→              {calendarTesting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CalendarIcon className="w-4 h-4 mr-1" />}
+   569→              Test Calendar Connection
+   570→            </Button>
+   571→          </div>
+   572→
+   573→          {/* Re-sync all records */}
+   574→          <div className="border-t border-slate-200 pt-4 mt-2">
+   575→            <div className="text-sm font-medium text-slate-900 mb-1">Re-sync all records</div>
+   576→            <div className="text-xs text-slate-500 mb-3">
+   577→              Use this after changing the Calendar ID to push all existing records to the new calendar.
+   578→            </div>
+   579→            <Button variant="outline" onClick={handleResyncAll} disabled={calendarResyncing || !settings?.configured} className="border-blue-300 text-blue-700 hover:bg-blue-50">
+   580→              {calendarResyncing ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Syncing…</> : <><RefreshCw className="w-4 h-4 mr-1" /> Re-sync All Records to Calendar</>}
+   581→            </Button>
+   582→            {calendarResyncResult && (
+   583→              <div className={`mt-3 p-3 rounded-md text-sm ${calendarResyncResult.failed > 0 ? "bg-amber-50 border border-amber-200 text-amber-800" : "bg-emerald-50 border border-emerald-200 text-emerald-800"}`}>
+   584→                <div className="font-medium">
+   585→                  Re-sync complete: {calendarResyncResult.success} synced, {calendarResyncResult.failed} failed, {calendarResyncResult.skipped} skipped
+   586→                </div>
+   587→                {calendarResyncResult.errors.length > 0 && (
+   588→                  <details className="mt-1">
+   589→                    <summary className="cursor-pointer text-xs">View {calendarResyncResult.errors.length} error(s)</summary>
+   590→                    <ul className="list-disc ml-4 mt-1 text-xs space-y-0.5">
+   591→                      {calendarResyncResult.errors.map((err, i) => (<li key={i}>{err.controlNo}: {err.error}</li>))}
+   592→                    </ul>
+   593→                  </details>
+   594→                )}
+   595→              </div>
+   596→            )}
+   597→          </div>
+   598→
+   599→          <details className="text-sm">
+   600→            <summary className="cursor-pointer text-emerald-700 hover:underline font-medium">
+   601→              How do I set up Google Calendar sync?
+   602→            </summary>
+   603→            <ol className="list-decimal ml-5 mt-2 space-y-1 text-xs text-slate-600">
+   604→              <li>In <strong>Google Cloud Console</strong> (same project as Sheets), enable the <strong>Google Calendar API</strong>.</li>
+   605→              <li>Open <a href="https://calendar.google.com" target="_blank" rel="noreferrer" className="text-emerald-700 underline inline-flex items-center gap-0.5">Google Calendar <ExternalLink className="w-3 h-3" /></a> → find your calendar → three dots → <strong>Settings and sharing</strong>.</li>
+   606→              <li>Scroll to <strong>Share with specific people</strong> → paste your Service Account email → give it <strong>Make changes to events</strong> permission.</li>
+   607→              <li>Scroll to <strong>Integrate calendar</strong> → copy the <strong>Calendar ID</strong>.</li>
+   608→              <li>Paste the Calendar ID above → <strong>Save</strong> → <strong>Test</strong> → <strong>Re-sync All Records</strong>.</li>
+   609→            </ol>
+   610→          </details>
+   611→        </CardContent>
+   612→      </Card>
+   613→
+   614→      {/* Dropdown Options */}
+   615→      <Card>
+   616→        <CardHeader>
+   617→          <CardTitle className="text-base flex items-center gap-2">
+   618→            <Settings className="w-4 h-4 text-emerald-600" />
+   619→            Dropdown Options
+   620→          </CardTitle>
+   621→          <CardDescription>
+   622→            Manage the options that appear in dropdown menus and that the AI uses for extraction.
+   623→            Changes take effect immediately for new records.
+   624→          </CardDescription>
+   625→        </CardHeader>
+   626→        <CardContent className="space-y-4">
+   627→          {optionsLoading ? (
+   628→            <div className="flex items-center justify-center py-4"><Loader2 className="w-6 h-6 text-emerald-600 animate-spin" /></div>
+   629→          ) : (
+   630→            <>
+   631→              <OptionEditor label="Assigned To (Staff)" category="assignedTo" options={dropdownOptions.assignedTo} onAdd={handleAddOption} onDelete={handleDeleteOption} />
+   632→              <OptionEditor label="Status" category="status" options={dropdownOptions.status} onAdd={handleAddOption} onDelete={handleDeleteOption} />
+   633→              <OptionEditor label="Activity Category" category="activityCategory" options={dropdownOptions.activityCategory} onAdd={handleAddOption} onDelete={handleDeleteOption} />
+   634→              <OptionEditor label="Common Senders (From)" category="sender" options={dropdownOptions.sender} onAdd={handleAddOption} onDelete={handleDeleteOption} />
+   635→            </>
+   636→          )}
+   637→        </CardContent>
+   638→      </Card>
+   639→
+   640→      {/* Users */}
+   641→      <Card>
+   642→        <CardHeader className="flex flex-row items-center justify-between">
+   643→          <div>
+   644→            <CardTitle className="text-base flex items-center gap-2">
+   645→              <Users className="w-4 h-4 text-emerald-600" />
+   646→              User Accounts
+   647→            </CardTitle>
+   648→            <CardDescription>Manage staff who can log in and create records.</CardDescription>
+   649→          </div>
+   650→          <Button
+   651→            size="sm"
+   652→            onClick={() => {
+   653→              setEditingUser(null);
+   654→              setShowUserDialog(true);
+   655→            }}
+   656→            className="bg-emerald-600 hover:bg-emerald-700"
+   657→          >
+   658→            <Plus className="w-4 h-4 mr-1" /> Add User
+   659→          </Button>
+   660→        </CardHeader>
+   661→        <CardContent>
+   662→          {usersLoading ? (
+   663→            <div className="flex justify-center py-6">
+   664→              <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
+   665→            </div>
+   666→          ) : users.length === 0 ? (
+   667→            <p className="text-sm text-slate-500 py-6 text-center">No users yet.</p>
+   668→          ) : (
+   669→            <div className="space-y-2">
+   670→              {users.map((u) => (
+   671→                <div key={u.id} className="flex items-center gap-3 p-2 rounded border border-slate-200">
+   672→                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">
+   673→                    {u.name.slice(0, 2).toUpperCase()}
+   674→                  </div>
+   675→                  <div className="flex-1 min-w-0">
+   676→                    <div className="text-sm font-medium text-slate-900 flex items-center gap-2">
+   677→                      {u.name}
+   678→                      {u.role === "admin" && (
+   679→                        <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+   680→                          <ShieldCheck className="w-2.5 h-2.5 mr-0.5" /> Admin
+   681→                        </Badge>
+   682→                      )}
+   683→                      {!u.active && (
+   684→                        <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">
+   685→                          Inactive
+   686→                        </Badge>
+   687→                      )}
+   688→                    </div>
+   689→                    <div className="text-xs text-slate-500">@{u.username}</div>
+   690→                  </div>
+   691→                  <div className="flex gap-1">
+   692→                    <Button
+   693→                      variant="ghost"
+   694→                      size="sm"
+   695→                      onClick={() => {
+   696→                        setEditingUser(u);
+   697→                        setShowUserDialog(true);
+   698→                      }}
+   699→                    >
+   700→                      <Edit3 className="w-3.5 h-3.5" />
+   701→                    </Button>
+   702→                    {u.id !== currentUser?.id && (
+   703→                      <Button
+   704→                        variant="ghost"
+   705→                        size="sm"
+   706→                        onClick={() => handleDeleteUser(u.id)}
+   707→                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+   708→                      >
+   709→                        <Trash2 className="w-3.5 h-3.5" />
+   710→                      </Button>
+   711→                    )}
+   712→                  </div>
+   713→                </div>
+   714→              ))}
+   715→            </div>
+   716→          )}
+   717→        </CardContent>
+   718→      </Card>
+   719→
+   720→      {/* User dialog */}
+   721→      {showUserDialog && (
+   722→        <UserDialog
+   723→          user={editingUser}
+   724→          onClose={() => {
+   725→            setShowUserDialog(false);
+   726→            setEditingUser(null);
+   727→          }}
+   728→          onSave={handleSaveUser}
+   729→        />
+   730→      )}
+   731→    </div>
+   732→  );
+   733→}
+   734→
+   735→function UserDialog({
+   736→  user,
+   737→  onClose,
+   738→  onSave,
+   739→}: {
+   740→  user: UserRow | null;
+   741→  onClose: () => void;
+   742→  onSave: (u: { id?: string; username: string; name: string; password: string; role: string; active: boolean }) => void;
+   743→}) {
+   744→  const [username, setUsername] = useState(user?.username || "");
+   745→  const [name, setName] = useState(user?.name || "");
+   746→  const [password, setPassword] = useState("");
+   747→  const [role, setRole] = useState(user?.role || "staff");
+   748→  const [active, setActive] = useState(user?.active ?? true);
+   749→
+   750→  return (
+   751→    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+   752→      <DialogContent className="max-w-md">
+   753→        <DialogHeader>
+   754→          <DialogTitle>{user ? "Edit User" : "Add User"}</DialogTitle>
+   755→        </DialogHeader>
+   756→        <div className="space-y-3">
+   757→          <div className="space-y-1.5">
+   758→            <Label className="text-xs">Full Name</Label>
+   759→            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Maria Santos" />
+   760→          </div>
+   761→          <div className="space-y-1.5">
+   762→            <Label className="text-xs">Username</Label>
+   763→            <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. msantos" />
+   764→          </div>
+   765→          <div className="space-y-1.5">
+   766→            <Label className="text-xs">
+   767→              Password {user && <span className="text-slate-400">(leave blank to keep current)</span>}
+   768→            </Label>
+   769→            <Input
+   770→              type="password"
+   771→              value={password}
+   772→              onChange={(e) => setPassword(e.target.value)}
+   773→              placeholder={user ? "••••••" : "At least 6 characters"}
+   774→            />
+   775→          </div>
+   776→          <div className="grid grid-cols-2 gap-3">
+   777→            <div className="space-y-1.5">
+   778→              <Label className="text-xs">Role</Label>
+   779→              <Select value={role} onValueChange={setRole}>
+   780→                <SelectTrigger><SelectValue /></SelectTrigger>
+   781→                <SelectContent>
+   782→                  <SelectItem value="staff">Staff</SelectItem>
+   783→                  <SelectItem value="admin">Admin</SelectItem>
+   784→                </SelectContent>
+   785→              </Select>
+   786→            </div>
+   787→            <div className="space-y-1.5">
+   788→              <Label className="text-xs">Status</Label>
+   789→              <Select value={active ? "active" : "inactive"} onValueChange={(v) => setActive(v === "active")}>
+   790→                <SelectTrigger><SelectValue /></SelectTrigger>
+   791→                <SelectContent>
+   792→                  <SelectItem value="active">Active</SelectItem>
+   793→                  <SelectItem value="inactive">Inactive</SelectItem>
+   794→                </SelectContent>
+   795→              </Select>
+   796→            </div>
+   797→          </div>
+   798→          <div className="flex justify-end gap-2 pt-3 border-t">
+   799→            <Button variant="outline" onClick={onClose}>Cancel</Button>
+   800→            <Button
+   801→              onClick={() => onSave({
+   802→                id: user?.id,
+   803→                username,
+   804→                name,
+   805→                password,
+   806→                role,
+   807→                active,
+   808→              })}
+   809→              disabled={!username || !name || (!user && !password)}
+   810→              className="bg-emerald-600 hover:bg-emerald-700"
+   811→            >
+   812→              Save
+   813→            </Button>
+   814→          </div>
+   815→        </div>
+   816→      </DialogContent>
+   817→    </Dialog>
+   818→  );
+   819→}
+   820→
+   821→function OptionEditor({ label, category, options, onAdd, onDelete }: {
+   822→  label: string;
+   823→  category: string;
+   824→  options: string[];
+   825→  onAdd: (category: string, value: string) => void;
+   826→  onDelete: (category: string, value: string) => void;
+   827→}) {
+   828→  const [newOption, setNewOption] = useState("");
+   829→  const { toast } = useToast();
+   830→
+   831→  const handleAdd = () => {
+   832→    const val = newOption.trim();
+   833→    if (!val) return;
+   834→    if (options.some((o) => o.toLowerCase() === val.toLowerCase())) {
+   835→      toast({ title: "Already exists", description: `"${val}" is already in this list`, variant: "destructive" });
+   836→      return;
+   837→    }
+   838→    onAdd(category, val);
+   839→    setNewOption("");
+   840→  };
+   841→
+   842→  const handleDelete = (value: string) => {
+   843→    if (confirm(`Remove "${value}" from ${label}?\n\nExisting records will keep this value, but new records won't be able to select it.`)) {
+   844→      onDelete(category, value);
+   845→    }
+   846→  };
+   847→
+   848→  return (
+   849→    <div className="space-y-2">
+   850→      <Label className="text-xs font-medium text-slate-700">{label}</Label>
+   851→      <div className="flex flex-wrap gap-1.5">
+   852→        {options.map((opt) => (
+   853→          <div key={opt} className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-xs">
+   854→            <span>{opt}</span>
+   855→            <button onClick={() => handleDelete(opt)} className="text-slate-400 hover:text-red-600 ml-0.5" title={`Remove "${opt}"`}>
+   856→              <XCircle className="w-3 h-3" />
+   857→            </button>
+   858→          </div>
+   859→        ))}
+   860→        {options.length === 0 && <span className="text-xs text-slate-400 italic">No options — add one below</span>}
+   861→      </div>
+   862→      <div className="flex gap-2">
+   863→        <Input
+   864→          value={newOption}
+   865→          onChange={(e) => setNewOption(e.target.value)}
+   866→          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
+   867→          placeholder={`Add new ${label.toLowerCase()}...`}
+   868→          className="h-8 text-sm"
+   869→        />
+   870→        <Button size="sm" variant="outline" onClick={handleAdd} disabled={!newOption.trim()} className="h-8">
+   871→          <Plus className="w-3 h-3 mr-1" /> Add
+   872→        </Button>
+   873→      </div>
+   874→    </div>
+   875→  );
+   876→}
+   877→
