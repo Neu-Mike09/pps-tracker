@@ -275,7 +275,7 @@ export function RecordsView() {
           activityCategory: updated.activityCategory,
           remarks: updated.remarks,
           priority: updated.priority,
-          activityDateTime: updated.activityDateTime,
+          activityDateTime: updated.activityDateTime ? new Date(updated.activityDateTime).toISOString() : null,
           activityEndTime: updated.activityEndTime,
         }),
       });
