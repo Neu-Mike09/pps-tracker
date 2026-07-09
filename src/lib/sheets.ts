@@ -108,15 +108,15 @@ export async function ensureSheetHeaders() {
     "Subject / Title",
     "Reference No.",
     "Assigned To",
+    "Year",
+    "Priority",
+    "Activity Date",
+    "Activity Time",
     "Target Date",
     "Date Completed",
     "Status",
     "Activity Category",
     "Remarks / Action Taken",
-    "Year",
-    "Priority",
-    "Activity Date",
-    "Activity Time",
   ];
 
   const existing = res.data.values?.[0];
@@ -246,9 +246,9 @@ export async function updateCommunicationRow(communicationId: string) {
  * Helper: convert a Communication record to a row array (18 columns A-R)
  * matching the Sheet header order:
  * A=ControlNo, B=DateReceived, C=Time, D=DateOfDocument, E=DocType,
- * F=From, G=Subject, H=RefNo, I=AssignedTo, J=TargetDate, K=DateCompleted,
- * L=Status, M=ActivityCategory, N=Remarks, O=Year, P=Priority,
- * Q=ActivityDate, R=ActivityTime
+ * F=From, G=Subject, H=RefNo, I=AssignedTo, J=Year, K=Priority,
+ * L=ActivityDate, M=ActivityTime, N=TargetDate, O=DateCompleted,
+ * P=Status, Q=ActivityCategory, R=Remarks
  */
 function buildRow(comm: {
   controlNo: string;
@@ -302,24 +302,24 @@ function buildRow(comm: {
   };
 
   return [
-    comm.controlNo,           // A
-    formatDate(comm.dateReceived), // B
-    comm.timeReceived || "",  // C — Time received (HH:MM)
-    formatDate(comm.dateOfDocument), // D
-    comm.documentType || "",  // E
-    comm.fromOffice || "",    // F
-    comm.subject || "",       // G
-    comm.referenceNo || "",   // H
-    comm.assignedTo || "",    // I
-    formatDate(comm.targetDate), // J
-    formatDate(comm.dateCompleted), // K
-    comm.status || "",        // L
-    comm.activityCategory || "", // M
-    comm.remarks || "",       // N
-    String(comm.year),        // O
-    comm.priority || "",      // P — Priority
-    formatDate(comm.activityDateTime), // Q — Activity Date (YYYY-MM-DD)
-    formatActivityTime(),     // R — Activity Time (e.g., "8:00 AM - 5:00 PM" or "All day")
+    comm.controlNo,           // A — Control No.
+    formatDate(comm.dateReceived), // B — Date Received
+    comm.timeReceived || "",  // C — Time
+    formatDate(comm.dateOfDocument), // D — Date of Document
+    comm.documentType || "",  // E — Document Type
+    comm.fromOffice || "",    // F — From (Office/Person)
+    comm.subject || "",       // G — Subject / Title
+    comm.referenceNo || "",   // H — Reference No.
+    comm.assignedTo || "",    // I — Assigned To
+    String(comm.year),        // J — Year
+    comm.priority || "",      // K — Priority
+    formatDate(comm.activityDateTime), // L — Activity Date
+    formatActivityTime(),     // M — Activity Time
+    formatDate(comm.targetDate), // N — Target Date
+    formatDate(comm.dateCompleted), // O — Date Completed
+    comm.status || "",        // P — Status
+    comm.activityCategory || "", // Q — Activity Category
+    comm.remarks || "",       // R — Remarks / Action Taken
   ];
 }
 

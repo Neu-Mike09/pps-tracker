@@ -95,15 +95,15 @@ COLUMNS = [
     ("G", "Subject / Title",      45, "left"),
     ("H", "Reference No.",        20, "left"),
     ("I", "Assigned To",          12, "center"),
-    ("J", "Target Date",          13, "center"),
-    ("K", "Date Completed",       13, "center"),
-    ("L", "Status",               14, "left"),
-    ("M", "Activity Category",    16, "left"),
-    ("N", "Remarks / Action Taken", 35, "left"),
-    ("O", "Year",                  7, "center"),
-    ("P", "Priority",             10, "center"),
-    ("Q", "Activity Date",        13, "center"),
-    ("R", "Activity Time",        18, "center"),
+    ("J", "Year",                  7, "center"),
+    ("K", "Priority",             10, "center"),
+    ("L", "Activity Date",        13, "center"),
+    ("M", "Activity Time",        18, "center"),
+    ("N", "Target Date",          13, "center"),
+    ("O", "Date Completed",       13, "center"),
+    ("P", "Status",               14, "left"),
+    ("Q", "Activity Category",    16, "left"),
+    ("R", "Remarks / Action Taken", 35, "left"),
 ]
 
 # ============================================================
@@ -162,7 +162,7 @@ ws.row_dimensions[4].height = 32
 
 # --- Format data rows (rows 5-1004, pre-format 1000 rows for incoming data) ---
 DATA_ROWS = 1000
-date_cols = ["B", "D", "J", "K", "Q"]  # columns that hold dates
+date_cols = ["B", "D", "L", "N", "O"]  # columns that hold dates (Date Received, Date of Document, Activity Date, Target Date, Date Completed)
 band_odd_fill = PatternFill("solid", fgColor=COLOR_BAND_ODD)
 
 for row_num in range(5, 5 + DATA_ROWS):
@@ -200,9 +200,9 @@ dv_doc_type.errorTitle = "Invalid Document Type"
 dv_doc_type.prompt = "Select document type"
 dv_doc_type.promptTitle = "Document Type"
 ws.add_data_validation(dv_doc_type)
-dv_doc_type.add(f"E5:E{4 + DATA_ROWS}")
+dv_doc_type.add(f"E5:E{4 + DATA_ROWS}")  # Document Type is column E (unchanged)
 
-# Column L: Status
+# Column P: Status (moved from L)
 dv_status = DataValidation(
     type="list",
     formula1="='Reference Lists'!$B$2:$B$10",
@@ -214,9 +214,9 @@ dv_status.errorTitle = "Invalid Status"
 dv_status.prompt = "Select status"
 dv_status.promptTitle = "Status"
 ws.add_data_validation(dv_status)
-dv_status.add(f"L5:L{4 + DATA_ROWS}")
+dv_status.add(f"P5:P{4 + DATA_ROWS}")  # Status is now column P
 
-# Column M: Activity Category
+# Column Q: Activity Category (moved from M)
 dv_category = DataValidation(
     type="list",
     formula1="='Reference Lists'!$C$2:$C$10",
@@ -228,9 +228,9 @@ dv_category.errorTitle = "Invalid Activity Category"
 dv_category.prompt = "Select activity category"
 dv_category.promptTitle = "Activity Category"
 ws.add_data_validation(dv_category)
-dv_category.add(f"M5:M{4 + DATA_ROWS}")
+dv_category.add(f"Q5:Q{4 + DATA_ROWS}")  # Activity Category is now column Q
 
-# Column P: Priority
+# Column K: Priority (moved from P)
 dv_priority = DataValidation(
     type="list",
     formula1="='Reference Lists'!$D$2:$D$5",
@@ -242,7 +242,7 @@ dv_priority.errorTitle = "Invalid Priority"
 dv_priority.prompt = "Select priority"
 dv_priority.promptTitle = "Priority"
 ws.add_data_validation(dv_priority)
-dv_priority.add(f"P5:P{4 + DATA_ROWS}")
+dv_priority.add(f"K5:K{4 + DATA_ROWS}")  # Priority is now column K
 
 # Column I: Assigned To
 dv_assigned = DataValidation(
@@ -254,10 +254,10 @@ dv_assigned = DataValidation(
 dv_assigned.prompt = "Select staff member"
 dv_assigned.promptTitle = "Assigned To"
 ws.add_data_validation(dv_assigned)
-dv_assigned.add(f"I5:I{4 + DATA_ROWS}")
+dv_assigned.add(f"I5:I{4 + DATA_ROWS}")  # Assigned To is column I (unchanged)
 
 # ============================================================
-# CONDITIONAL FORMATTING — Status colors (column L)
+# CONDITIONAL FORMATTING — Status colors (column P — Status is now in P)
 # ============================================================
 for status, (bg, fg) in STATUS_FILLS.items():
     rule = CellIsRule(
@@ -266,9 +266,9 @@ for status, (bg, fg) in STATUS_FILLS.items():
         fill=PatternFill("solid", fgColor=bg),
         font=Font(name="Calibri", size=11, bold=True, color=fg),
     )
-    ws.conditional_formatting.add(f"L5:L{4 + DATA_ROWS}", rule)
+    ws.conditional_formatting.add(f"P5:P{4 + DATA_ROWS}", rule)
 
-# Conditional formatting — Priority colors (column P)
+# Conditional formatting — Priority colors (column K — Priority is now in K)
 for priority, (bg, fg) in PRIORITY_FILLS.items():
     rule = CellIsRule(
         operator="equal",
@@ -276,21 +276,21 @@ for priority, (bg, fg) in PRIORITY_FILLS.items():
         fill=PatternFill("solid", fgColor=bg),
         font=Font(name="Calibri", size=11, bold=True, color=fg),
     )
-    ws.conditional_formatting.add(f"P5:P{4 + DATA_ROWS}", rule)
+    ws.conditional_formatting.add(f"K5:K{4 + DATA_ROWS}", rule)
 
-# Highlight overdue Target Dates (red) — past date AND status not terminal
+# Highlight overdue Target Dates (red) — Target Date is now in column N, Status is now in column P
 # Terminal statuses: Accomplished, Attended, For Filing, Cancelled
 overdue_fill = PatternFill("solid", fgColor="FECACA")
 overdue_font = Font(name="Calibri", size=11, bold=True, color="991B1B")
 overdue_rule = FormulaRule(
     formula=[
-        f'AND(J5<>"",J5<TODAY(),'
-        f'L5<>"Accomplished",L5<>"Attended",L5<>"For Filing",L5<>"Cancelled")'
+        f'AND(N5<>"",N5<TODAY(),'
+        f'P5<>"Accomplished",P5<>"Attended",P5<>"For Filing",P5<>"Cancelled")'
     ],
     fill=overdue_fill,
     font=overdue_font,
 )
-ws.conditional_formatting.add(f"J5:J{4 + DATA_ROWS}", overdue_rule)
+ws.conditional_formatting.add(f"N5:N{4 + DATA_ROWS}", overdue_rule)
 
 # ============================================================
 # Sheet 2: Reference Lists (mirrors the original Excel logbook)
@@ -405,15 +405,15 @@ instructions = [
     ("G: Subject / Title   — Subject line of the document", "mono"),
     ("H: Reference No.     — Reference number from the document", "mono"),
     ("I: Assigned To       — Dropdown: MJ, Alnee, Jing, MRC (editable in Reference Lists)", "mono"),
-    ("J: Target Date       — Deadline date (YYYY-MM-DD). Highlighted red if overdue.", "mono"),
-    ("K: Date Completed    — When the task was completed (YYYY-MM-DD)", "mono"),
-    ("L: Status            — Dropdown with color coding (Pending=red, Accomplished=green, etc.)", "mono"),
-    ("M: Activity Category — Dropdown: Coordination, Meeting, Training/Seminar, etc.", "mono"),
-    ("N: Remarks / Action  — Free text for notes and actions taken", "mono"),
-    ("O: Year              — Auto-filled from Date Received", "mono"),
-    ("P: Priority          — Dropdown: Urgent (red), High (orange), Normal (green), Low (gray)", "mono"),
-    ("Q: Activity Date     — Date of the scheduled activity/meeting/event (YYYY-MM-DD)", "mono"),
-    ("R: Activity Time     — Time range (e.g., '8:00 AM - 5:00 PM') or 'All day'", "mono"),
+    ("J: Year              — Auto-filled from Date Received", "mono"),
+    ("K: Priority          — Dropdown: Urgent (red), High (orange), Normal (green), Low (gray)", "mono"),
+    ("L: Activity Date     — Date of the scheduled activity/meeting/event (YYYY-MM-DD)", "mono"),
+    ("M: Activity Time     — Time range (e.g., '8:00 AM - 5:00 PM') or 'All day'", "mono"),
+    ("N: Target Date       — Deadline date (YYYY-MM-DD). Highlighted red if overdue.", "mono"),
+    ("O: Date Completed    — When the task was completed (YYYY-MM-DD)", "mono"),
+    ("P: Status            — Dropdown with color coding (Pending=red, Accomplished=green, etc.)", "mono"),
+    ("Q: Activity Category — Dropdown: Coordination, Meeting, Training/Seminar, etc.", "mono"),
+    ("R: Remarks / Action  — Free text for notes and actions taken", "mono"),
     ("", ""),
     ("REFERENCE LISTS SHEET", "header"),
     ("• The 'Reference Lists' sheet contains all dropdown values.", "body"),
