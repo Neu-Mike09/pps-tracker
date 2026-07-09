@@ -50,9 +50,12 @@ export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fil
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Use gemini-flash-latest (current naming convention for the flash model)
+    // Allow model override via env var (default: gemini-flash-latest).
+    // On a Pro/paid account, this works without daily quota limits.
+    // On free tier, gemini-flash-latest has a 20-req/day limit.
+    const modelName = process.env.GEMINI_MODEL || "gemini-flash-latest";
     const model = genAI.getGenerativeModel({
-      model: "gemini-flash-latest",
+      model: modelName,
       generationConfig: { responseMimeType: "application/json" },
     });
     const ext = fileName?.split(".").pop()?.toLowerCase() || "";
@@ -80,6 +83,16 @@ export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fil
       return getEmptyResult(content);
     }
   } catch (e) {
-    throw new Error(`AI extraction request failed: ${e instanceof Error ? e.message : String(e)}`);
+    const errMsg = e instanceof Error ? e.message : String(e);
+    // Detect quota exceeded and provide a more helpful message
+    if (errMsg.includes("429") || errMsg.toLowerCase().includes("quota")) {
+      throw new Error(
+        `Gemini API quota exceeded. The free tier has a 20 requests/day limit. ` +
+        `To fix: (1) Get a Pro/paid API key from https://aistudio.google.com/apikey, ` +
+        `(2) Update the GEMINI_API_KEY environment variable on Render with the new key. ` +
+        `Original error: ${errMsg}`
+      );
+    }
+    throw new Error(`AI extraction request failed: ${errMsg}`);
   }
 }
