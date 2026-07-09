@@ -95,7 +95,7 @@ export async function ensureSheetHeaders() {
   // Try to read existing header row
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: config.spreadsheetId,
-    range: `${config.sheetName}!A4:O4`,
+    range: `${config.sheetName}!A4:R4`,
   });
 
   const headers = [
@@ -114,6 +114,9 @@ export async function ensureSheetHeaders() {
     "Activity Category",
     "Remarks / Action Taken",
     "Year",
+    "Priority",
+    "Activity Date",
+    "Activity Time",
   ];
 
   const existing = res.data.values?.[0];
@@ -228,10 +231,10 @@ export async function updateCommunicationRow(communicationId: string) {
     return { action: "appended" as const, rowNumber: nextRow };
   }
 
-  // Update the existing row (columns A through O — 15 columns including Time)
+  // Update the existing row (columns A through R — 18 columns including Priority, Activity Date, Activity Time)
   await sheets.spreadsheets.values.update({
     spreadsheetId: config.spreadsheetId,
-    range: `${config.sheetName}!A${targetRowNumber}:O${targetRowNumber}`,
+    range: `${config.sheetName}!A${targetRowNumber}:R${targetRowNumber}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
@@ -240,11 +243,12 @@ export async function updateCommunicationRow(communicationId: string) {
 }
 
 /**
- * Helper: convert a Communication record to a row array (15 columns A-O)
+ * Helper: convert a Communication record to a row array (18 columns A-R)
  * matching the Sheet header order:
  * A=ControlNo, B=DateReceived, C=Time, D=DateOfDocument, E=DocType,
  * F=From, G=Subject, H=RefNo, I=AssignedTo, J=TargetDate, K=DateCompleted,
- * L=Status, M=ActivityCategory, N=Remarks, O=Year
+ * L=Status, M=ActivityCategory, N=Remarks, O=Year, P=Priority,
+ * Q=ActivityDate, R=ActivityTime
  */
 function buildRow(comm: {
   controlNo: string;
@@ -262,11 +266,41 @@ function buildRow(comm: {
   activityCategory: string | null;
   remarks: string | null;
   year: number;
+  priority: string | null;
+  activityDateTime: Date | null;
+  activityDateTimeHasTime: boolean;
+  activityEndTime: string | null;
 }): string[] {
   const formatDate = (d: Date | null | undefined): string => {
     if (!d) return "";
     return d.toISOString().slice(0, 10); // YYYY-MM-DD
   };
+
+  // Format activity time for display:
+  // - If no activity date → empty
+  // - If hasTime=true → "8:00 AM - 5:00 PM" (or just "8:00 AM" if no end time)
+  // - If hasTime=false → "All day"
+  const formatActivityTime = (): string => {
+    if (!comm.activityDateTime) return "";
+    if (!comm.activityDateTimeHasTime) return "All day";
+    const startTime = comm.activityDateTime.toLocaleTimeString("en-US", {
+      timeZone: "Asia/Manila",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    if (comm.activityEndTime) {
+      const [eh, em] = comm.activityEndTime.split(":").map(Number);
+      if (!isNaN(eh)) {
+        const period = eh >= 12 ? "PM" : "AM";
+        const h12 = eh % 12 || 12;
+        const endTime = `${h12}:${String(em || 0).padStart(2, "0")} ${period}`;
+        return `${startTime} - ${endTime}`;
+      }
+    }
+    return startTime;
+  };
+
   return [
     comm.controlNo,           // A
     formatDate(comm.dateReceived), // B
@@ -283,6 +317,9 @@ function buildRow(comm: {
     comm.activityCategory || "", // M
     comm.remarks || "",       // N
     String(comm.year),        // O
+    comm.priority || "",      // P — Priority
+    formatDate(comm.activityDateTime), // Q — Activity Date (YYYY-MM-DD)
+    formatActivityTime(),     // R — Activity Time (e.g., "8:00 AM - 5:00 PM" or "All day")
   ];
 }
 
