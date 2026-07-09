@@ -10,7 +10,14 @@ export async function GET() {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    return NextResponse.json(await testCalendarConnection());
+    const result = await testCalendarConnection();
+    // Include a version marker so the user can confirm they're running the latest code
+    // (which creates separate Activity + Deadline events with proper PHT timezone handling).
+    return NextResponse.json({
+      ...result,
+      codeVersion: "v2-dual-event-pht",
+      message: result.message + " [Code: v2-dual-event-pht]",
+    });
   } catch (e) {
     return NextResponse.json({ ok: false, message: e instanceof Error ? e.message : String(e) });
   }

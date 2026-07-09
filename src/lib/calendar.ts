@@ -47,14 +47,48 @@ interface CommunicationForCalendar {
 
 type EventType = "activity" | "deadline";
 
+// DA RFO 5 is in the Philippines (PHT = UTC+8, no DST).
+// Render.com servers run in UTC, so we must explicitly use Asia/Manila
+// whenever we need local date/time components. Using Date.getLocalX() methods
+// would return UTC values on the server and shift dates to the wrong day.
+const PHT_TZ = "Asia/Manila";
+const PHT_OFFSET_MS = 8 * 60 * 60 * 1000;
+
 /**
- * Format a Date as YYYY-MM-DD using LOCAL time components (not UTC).
- * Critical for all-day calendar events — using UTC would shift the date
- * to the previous day in timezones east of GMT (e.g., Philippines UTC+8).
+ * Format a Date as YYYY-MM-DD using PHT (Asia/Manila) date components.
+ * Critical for all-day calendar events — using UTC (the server's local tz on Render)
+ * would shift the date to the previous day in PHT.
  */
 function formatLocalDate(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: PHT_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = fmt.formatToParts(d);
+  const y = parts.find((p) => p.type === "year")?.value || "1970";
+  const m = parts.find((p) => p.type === "month")?.value || "01";
+  const day = parts.find((p) => p.type === "day")?.value || "01";
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Given a start Date (stored as UTC internally) and a PHT time string "HH:MM",
+ * return an ISO string representing that end time on the same calendar date in PHT.
+ *
+ * Why we can't use Date.setHours(): it uses the SERVER's local timezone (UTC on Render),
+ * so setHours(17, 0) would set UTC hours to 17 (= 1am next day PHT), not PHT hours.
+ *
+ * Fix: shift the date by +8h (so UTC = PHT), use setUTCHours, then shift back.
+ */
+function computeEndTimeISO(startUtc: Date, phtTimeStr: string): string | null {
+  const [hh, mm] = phtTimeStr.split(":").map((s) => parseInt(s, 10));
+  if (isNaN(hh) || isNaN(mm)) return null;
+  const shifted = new Date(startUtc.getTime() + PHT_OFFSET_MS);
+  shifted.setUTCHours(hh, mm, 0, 0);
+  const endUtc = new Date(shifted.getTime() - PHT_OFFSET_MS);
+  return endUtc.toISOString();
 }
 
 /**
@@ -64,7 +98,7 @@ function formatLocalDate(d: Date): string {
  * - If the date has a time component (hasTime=true) → timed event
  *     - For activity: start = activityDateTime, end = activityEndTime (if provided) else start + 1 hour
  * - If the date has no time (hasTime=false) → all-day event
- *     - start = date (YYYY-MM-DD LOCAL), end = next day (Google's exclusive end convention)
+ *     - start = date (YYYY-MM-DD in PHT), end = next day (Google's exclusive end convention)
  */
 function buildEvent(comm: CommunicationForCalendar, type: EventType) {
   let dateValue: Date | null;
@@ -84,20 +118,16 @@ function buildEvent(comm: CommunicationForCalendar, type: EventType) {
   let end: { dateTime?: string; date?: string };
 
   if (hasTime) {
-    // Timed event — use ISO strings with timezone
+    // Timed event — start time is the stored UTC ISO string.
+    // Google Calendar displays it in the viewer's timezone (PHT for DA RFO 5 users).
     const startTime = dateValue.toISOString();
     let endTime: string;
 
     if (type === "activity" && comm.activityEndTime) {
-      // activityEndTime is "HH:MM" (24h). Combine with the activity date's LOCAL date.
-      const [hh, mm] = comm.activityEndTime.split(":").map((s) => parseInt(s, 10));
-      if (!isNaN(hh) && !isNaN(mm)) {
-        const endDt = new Date(dateValue);
-        endDt.setHours(hh, mm, 0, 0);
-        endTime = endDt.toISOString();
-      } else {
-        endTime = new Date(dateValue.getTime() + 60 * 60 * 1000).toISOString();
-      }
+      // activityEndTime is "HH:MM" in PHT (e.g., "17:00" = 5:00 PM PHT).
+      // Must compute the correct UTC ISO using PHT offset (see computeEndTimeISO).
+      const computed = computeEndTimeISO(dateValue, comm.activityEndTime);
+      endTime = computed || new Date(dateValue.getTime() + 60 * 60 * 1000).toISOString();
     } else {
       // Default: 1 hour duration
       endTime = new Date(dateValue.getTime() + 60 * 60 * 1000).toISOString();
@@ -106,10 +136,10 @@ function buildEvent(comm: CommunicationForCalendar, type: EventType) {
     start = { dateTime: startTime };
     end = { dateTime: endTime };
   } else {
-    // All-day event using LOCAL date (not UTC, which would shift to prev day in PH timezone)
+    // All-day event using PHT date (not UTC, which would shift to prev day in PH timezone)
     const startDate = formatLocalDate(dateValue);
-    const endDateObj = new Date(dateValue);
-    endDateObj.setDate(endDateObj.getDate() + 1);
+    // Compute next day in PHT
+    const endDateObj = new Date(dateValue.getTime() + 24 * 60 * 60 * 1000);
     const endDate = formatLocalDate(endDateObj);
     start = { date: startDate };
     end = { date: endDate };
@@ -128,7 +158,7 @@ function buildEvent(comm: CommunicationForCalendar, type: EventType) {
   // Show BOTH dates in the description so the user can see context regardless of which event they're viewing
   if (comm.activityDateTime) {
     const aTime = comm.activityDateTimeHasTime
-      ? comm.activityDateTime.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+      ? comm.activityDateTime.toLocaleString("en-US", { timeZone: PHT_TZ, dateStyle: "medium", timeStyle: "short" })
       : formatLocalDate(comm.activityDateTime);
     let aLine = `Activity Date: ${aTime}`;
     if (comm.activityDateTimeHasTime && comm.activityEndTime) aLine += ` - ${comm.activityEndTime}`;
@@ -136,7 +166,7 @@ function buildEvent(comm: CommunicationForCalendar, type: EventType) {
   }
   if (comm.targetDate) {
     const tTime = comm.targetDateHasTime
-      ? comm.targetDate.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+      ? comm.targetDate.toLocaleString("en-US", { timeZone: PHT_TZ, dateStyle: "medium", timeStyle: "short" })
       : formatLocalDate(comm.targetDate);
     lines.push(`Deadline: ${tTime}`);
   }
