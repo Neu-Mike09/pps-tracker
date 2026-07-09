@@ -1,0 +1,620 @@
+     1→"use client";
+     2→
+     3→import { useState, useRef, useEffect } from "react";
+     4→import { useAppStore } from "@/lib/store";
+     5→import { Button } from "@/components/ui/button";
+     6→import { Input } from "@/components/ui/input";
+     7→import { Label } from "@/components/ui/label";
+     8→import { Textarea } from "@/components/ui/textarea";
+     9→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    10→import { Badge } from "@/components/ui/badge";
+    11→import {
+    12→  Select,
+    13→  SelectContent,
+    14→  SelectItem,
+    15→  SelectTrigger,
+    16→  SelectValue,
+    17→} from "@/components/ui/select";
+    18→import {
+    19→  Camera,
+    20→  Upload,
+    21→  FileText,
+    22→  Loader2,
+    23→  Save,
+    24→  X,
+    25→  Sparkles,
+    26→  RotateCcw,
+    27→  CheckCircle2,
+    28→  AlertCircle,
+    29→  Edit3,
+    30→  ExternalLink,
+    31→} from "lucide-react";
+    32→import { useToast } from "@/hooks/use-toast";
+    33→import {
+    34→  DOCUMENT_TYPES,
+    35→  PRIORITIES,
+    36→} from "@/lib/constants";
+    37→
+    38→interface ExtractedData {
+    39→  documentType: string | null;
+    40→  dateOfDocument: string | null;
+    41→  fromOffice: string | null;
+    42→  subject: string | null;
+    43→  referenceNo: string | null;
+    44→  activityCategorySuggestion: string | null;
+    45→  activityDateTimeSuggestion: string | null;
+    46→  activityEndTimeSuggestion: string | null;
+    47→  targetDateSuggestion: string | null;
+    48→  prioritySuggestion: string | null;
+    49→  rawText: string;
+    50→}
+    51→
+    52→interface FormState {
+    53→  photoPath: string | null;
+    54→  photoPreview: string | null;
+    55→  dateReceived: string;
+    56→  timeReceived: string | null;
+    57→  dateOfDocument: string | null;
+    58→  documentType: string | null;
+    59→  fromOffice: string | null;
+    60→  subject: string | null;
+    61→  referenceNo: string | null;
+    62→  assignedTo: string | null;
+    63→  targetDate: string | null;
+    64→  dateCompleted: string | null;
+    65→  status: string | null;
+    66→  activityCategory: string | null;
+    67→  remarks: string | null;
+    68→  priority: string | null;
+    69→  activityDateTime: string | null;
+    70→  activityEndTime: string | null;
+    71→}
+    72→
+    73→const todayStr = () => new Date().toISOString().slice(0, 10);
+    74→const nowTimeStr = () => {
+    75→  const d = new Date();
+    76→  const pad = (n: number) => String(n).padStart(2, "0");
+    77→  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    78→};
+    79→
+    80→async function safeJsonResponse(res: Response): Promise<Record<string, unknown>> {
+    81→  const contentType = res.headers.get("content-type") || "";
+    82→  const text = await res.text();
+    83→  if (contentType.includes("application/json") || text.trim().startsWith("{") || text.trim().startsWith("[")) {
+    84→    try { return JSON.parse(text); } catch {}
+    85→  }
+    86→  const preview = text.slice(0, 200).trim() || "(empty response)";
+    87→  return { error: `Server returned a non-JSON response (${res.status} ${res.statusText}). ${preview}` };
+    88→}
+    89→
+    90→async function fetchWithTimeout(url: string, options: RequestInit, ms: number): Promise<Response> {
+    91→  const controller = new AbortController();
+    92→  const timeoutId = setTimeout(() => controller.abort(), ms);
+    93→  try {
+    94→    return await fetch(url, { ...options, signal: controller.signal });
+    95→  } catch (e) {
+    96→    if (e instanceof DOMException && e.name === "AbortError") {
+    97→      throw new Error("Request timed out — the AI took too long to respond. Please try again.");
+    98→    }
+    99→    throw e;
+   100→  } finally {
+   101→    clearTimeout(timeoutId);
+   102→  }
+   103→}
+   104→
+   105→const toLocalDateTime = (iso: string | null): string | null => {
+   106→  if (!iso) return null;
+   107→  const d = new Date(iso);
+   108→  if (isNaN(d.getTime())) return null;
+   109→  const pad = (n: number) => String(n).padStart(2, "0");
+   110→  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+   111→};
+   112→const toLocalDate = (iso: string | null): string | null => {
+   113→  if (!iso) return null;
+   114→  const d = new Date(iso);
+   115→  if (isNaN(d.getTime())) return null;
+   116→  return d.toISOString().slice(0, 10);
+   117→};
+   118→
+   119→export function NewRecordView() {
+   120→  const { toast } = useToast();
+   121→  const setView = useAppStore((s) => s.setView);
+   122→  const fileInputRef = useRef<HTMLInputElement>(null);
+   123→  const cameraInputRef = useRef<HTMLInputElement>(null);
+   124→
+   125→  const [extracting, setExtracting] = useState(false);
+   126→  const [saving, setSaving] = useState(false);
+   127→  const [extracted, setExtracted] = useState<ExtractedData | null>(null);
+   128→  const [showRawText, setShowRawText] = useState(false);
+   129→  const [extractError, setExtractError] = useState<string | null>(null);
+   130→  const lastFileRef = useRef<File | null>(null);
+   131→  const [isImageFile, setIsImageFile] = useState(true);
+   132→  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+   133→  const [mode, setMode] = useState<"upload" | "manual">("upload");
+   134→  const [dropdownOptions, setDropdownOptions] = useState<{ assignedTo: string[]; status: string[]; activityCategory: string[]; sender: string[] }>({ assignedTo: [], status: [], activityCategory: [], sender: [] });
+   135→
+   136→  useEffect(() => {
+   137→    fetch("/api/options").then(r => r.json()).then(data => {
+   138→      if (data.assignedTo) setDropdownOptions(data);
+   139→    }).catch(() => {});
+   140→  }, []);
+   141→
+   142→  const [form, setForm] = useState<FormState>({
+   143→    photoPath: null,
+   144→    photoPreview: null,
+   145→    dateReceived: todayStr(),
+   146→    timeReceived: null,
+   147→    dateOfDocument: null,
+   148→    documentType: null,
+   149→    fromOffice: null,
+   150→    subject: null,
+   151→    referenceNo: null,
+   152→    assignedTo: null,
+   153→    targetDate: null,
+   154→    dateCompleted: null,
+   155→    status: "Pending",
+   156→    activityCategory: null,
+   157→    remarks: null,
+   158→    priority: "Normal",
+   159→    activityDateTime: null,
+   160→    activityEndTime: null,
+   161→  });
+   162→
+   163→  const update = (k: keyof FormState, v: string | null) => {
+   164→    setForm((f) => ({ ...f, [k]: v }));
+   165→  };
+   166→
+   167→  const handleFile = async (file: File) => {
+   168→    setExtracting(true);
+   169→    setExtracted(null);
+   170→    setExtractError(null);
+   171→    lastFileRef.current = file;
+   172→    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+   173→    const imageExts = ["jpg", "jpeg", "png", "webp", "gif", "bmp"];
+   174→    const isImg = imageExts.includes(ext) || file.type.startsWith("image/");
+   175→    setIsImageFile(isImg);
+   176→    setUploadedFileName(file.name);
+   177→    try {
+   178→      const uploadFormData = new FormData();
+   179→      uploadFormData.append("file", file);
+   180→      const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadFormData });
+   181→      const uploadData = await safeJsonResponse(uploadRes);
+   182→      if (!uploadRes.ok) throw new Error(uploadData.error || "Upload failed");
+   183→
+   184→      const photoPath = uploadData.path as string;
+   185→      const previewUrl = isImg ? URL.createObjectURL(file) : null;
+   186→      setForm((f) => ({ ...f, photoPath, photoPreview: previewUrl }));
+   187→
+   188→      const extractFormData = new FormData();
+   189→      extractFormData.append("file", file);
+   190→      const extractRes = await fetchWithTimeout("/api/extract", { method: "POST", body: extractFormData }, 90000);
+   191→      const extractData = await safeJsonResponse(extractRes);
+   192→      if (!extractRes.ok) throw new Error(extractData.error || "Extraction failed");
+   193→
+   194→      const ext2: ExtractedData = extractData.extracted as ExtractedData;
+   195→      setExtracted(ext2);
+   196→
+   197→      setForm((f) => ({
+   198→        ...f,
+   199→        photoPath,
+   200→        photoPreview: previewUrl,
+   201→        timeReceived: nowTimeStr(),
+   202→        dateOfDocument: toLocalDate(ext2.dateOfDocument),
+   203→        documentType: ext2.documentType,
+   204→        fromOffice: ext2.fromOffice,
+   205→        subject: ext2.subject,
+   206→        referenceNo: ext2.referenceNo,
+   207→        activityCategory: ext2.activityCategorySuggestion,
+   208→        activityDateTime: toLocalDateTime(ext2.activityDateTimeSuggestion),
+   209→        activityEndTime: ext2.activityEndTimeSuggestion || null,
+   210→        targetDate: toLocalDate(ext2.targetDateSuggestion),
+   211→        priority: ext2.prioritySuggestion || "Normal",
+   212→      }));
+   213→
+   214→      toast({ title: "Extraction complete", description: "Please review the extracted fields before saving." });
+   215→    } catch (e) {
+   216→      const msg = e instanceof Error ? e.message : String(e);
+   217→      setExtractError(msg);
+   218→      toast({
+   219→        title: "Extraction failed",
+   220→        description: msg.includes("timed out")
+   221→          ? "The AI took too long to respond. Click 'Retry extraction' to try again."
+   222→          : msg,
+   223→        variant: "destructive",
+   224→      });
+   225→    } finally {
+   226→      setExtracting(false);
+   227→    }
+   228→  };
+   229→
+   230→  const handleRetryExtraction = async () => {
+   231→    if (!lastFileRef.current) return;
+   232→    await handleFile(lastFileRef.current);
+   233→  };
+   234→
+   235→  const handleSave = async () => {
+   236→    setSaving(true);
+   237→    try {
+   238→      const res = await fetch("/api/communications", {
+   239→        method: "POST",
+   240→        headers: { "Content-Type": "application/json" },
+   241→        body: JSON.stringify({
+   242→          ...form,
+   243→          activityDateTime: form.activityDateTime ? new Date(form.activityDateTime).toISOString() : null,
+   244→        }),
+   245→      });
+   246→      const data = await res.json();
+   247→      if (!res.ok) throw new Error(data.error || "Save failed");
+   248→
+   249→      toast({
+   250→        title: "Record saved",
+   251→        description: data.warning
+   252→          ? `Control No. ${data.record.controlNo} • ${data.warning}`
+   253→          : `Control No. ${data.record.controlNo} saved & synced.`,
+   254→      });
+   255→
+   256→      setForm({
+   257→        photoPath: null, photoPreview: null, dateReceived: todayStr(),
+   258→        timeReceived: null,
+   259→        dateOfDocument: null, documentType: null, fromOffice: null,
+   260→        subject: null, referenceNo: null, assignedTo: null,
+   261→        targetDate: null, dateCompleted: null, status: "Pending",
+   262→        activityCategory: null, remarks: null, priority: "Normal",
+   263→        activityDateTime: null,
+   264→    activityEndTime: null,
+   265→      });
+   266→      setExtracted(null);
+   267→      setExtractError(null);
+   268→      setMode("upload");
+   269→      setIsImageFile(true);
+   270→      setUploadedFileName(null);
+   271→      setView("records");
+   272→    } catch (e) {
+   273→      toast({
+   274→        title: "Save failed",
+   275→        description: e instanceof Error ? e.message : String(e),
+   276→        variant: "destructive",
+   277→      });
+   278→    } finally {
+   279→      setSaving(false);
+   280→    }
+   281→  };
+   282→
+   283→  const handleReset = () => {
+   284→    setForm({
+   285→      photoPath: null, photoPreview: null, dateReceived: todayStr(),
+   286→      timeReceived: null,
+   287→      dateOfDocument: null, documentType: null, fromOffice: null,
+   288→      subject: null, referenceNo: null, assignedTo: null,
+   289→      targetDate: null, dateCompleted: null, status: "Pending",
+   290→      activityCategory: null, remarks: null, priority: "Normal",
+   291→      activityDateTime: null,
+   292→    activityEndTime: null,
+   293→    });
+   294→    setExtracted(null);
+   295→    setExtractError(null);
+   296→    setMode("upload");
+   297→    setIsImageFile(true);
+   298→    setUploadedFileName(null);
+   299→  };
+   300→
+   301→  const canSave = form.dateReceived && (form.photoPath || form.subject);
+   302→
+   303→  return (
+   304→    <div className="space-y-6 max-w-6xl mx-auto">
+   305→      <div className="flex flex-wrap items-center justify-between gap-3">
+   306→        <div>
+   307→          <h1 className="text-2xl font-bold text-slate-900">New Record</h1>
+   308→          <p className="text-sm text-slate-500">
+   309→            Upload a photo (AI extracts fields automatically) or enter the details manually.
+   310→          </p>
+   311→        </div>
+   312→        <Button variant="outline" onClick={() => setView("dashboard")}>
+   313→          <X className="w-4 h-4 mr-1" /> Cancel
+   314→        </Button>
+   315→      </div>
+   316→
+   317→      {/* Mode toggle */}
+   318→      {!form.photoPath && !extracting && (
+   319→        <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit">
+   320→          <button
+   321→            onClick={() => setMode("upload")}
+   322→            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+   323→              mode === "upload" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+   324→            }`}
+   325→          >
+   326→            <Camera className="w-4 h-4" />
+   327→            Upload Photo
+   328→          </button>
+   329→          <button
+   330→            onClick={() => setMode("manual")}
+   331→            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+   332→              mode === "manual" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+   333→            }`}
+   334→          >
+   335→            <Edit3 className="w-4 h-4" />
+   336→            Manual Entry
+   337→          </button>
+   338→        </div>
+   339→      )}
+   340→
+   341→      {/* Upload zone */}
+   342→      {!form.photoPath && mode === "upload" && (
+   343→        <Card className="border-2 border-dashed border-emerald-300 bg-emerald-50/30">
+   344→          <CardContent className="p-6">
+   345→            <div className="flex flex-col items-center text-center py-8">
+   346→              {extracting ? (
+   347→                <>
+   348→                  <Loader2 className="w-12 h-12 text-emerald-600 animate-spin mb-3" />
+   349→                  <div className="text-lg font-medium text-slate-900">Extracting data with AI…</div>
+   350→                  <div className="text-sm text-slate-500 mt-1">
+   351→                    Reading the document and pulling out fields. This takes ~5-15 seconds.
+   352→                  </div>
+   353→                </>
+   354→              ) : (
+   355→                <>
+   356→                  <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
+   357→                    <FileText className="w-8 h-8 text-emerald-600" />
+   358→                  </div>
+   359→                  <div className="text-lg font-medium text-slate-900 mb-1">Upload document</div>
+   360→                  <div className="text-sm text-slate-500 mb-4 max-w-md">
+   361→                    Take a clear photo of the incoming communication, or upload a document file.
+   362→                    The AI will extract document type, date, sender, subject, and reference no.
+   363→                  </div>
+   364→                  <div className="flex flex-wrap gap-2 justify-center">
+   365→                    <Button type="button" onClick={() => cameraInputRef.current?.click()} className="bg-emerald-600 hover:bg-emerald-700">
+   366→                      <Camera className="w-4 h-4 mr-1" /> Take Photo
+   367→                    </Button>
+   368→                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+   369→                      <Upload className="w-4 h-4 mr-1" /> Upload File
+   370→                    </Button>
+   371→                  </div>
+   372→                  <p className="text-xs text-slate-400 mt-4">
+   373→                    Images (JPG, PNG, WebP, GIF, BMP), PDF, Word (DOC, DOCX), Excel (XLS, XLSX),
+   374→                    PowerPoint (PPT, PPTX), TXT, CSV, RTF, EML. Max 25MB.
+   375→                  </p>
+   376→                </>
+   377→              )}
+   378→              <input
+   379→                ref={fileInputRef}
+   380→                type="file"
+   381→                accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain,text/csv,.rtf,.eml"
+   382→                className="hidden"
+   383→                onChange={(e) => {
+   384→                  const f = e.target.files?.[0];
+   385→                  if (f) handleFile(f);
+   386→                  e.target.value = "";
+   387→                }}
+   388→              />
+   389→              <input
+   390→                ref={cameraInputRef}
+   391→                type="file"
+   392→                accept="image/*"
+   393→                capture="environment"
+   394→                className="hidden"
+   395→                onChange={(e) => {
+   396→                  const f = e.target.files?.[0];
+   397→                  if (f) handleFile(f);
+   398→                  e.target.value = "";
+   399→                }}
+   400→              />
+   401→            </div>
+   402→          </CardContent>
+   403→        </Card>
+   404→      )}
+   405→
+   406→      {/* Form section */}
+   407→      {(form.photoPath || mode === "manual") && (
+   408→        <div className={form.photoPath ? "grid grid-cols-1 lg:grid-cols-5 gap-6" : ""}>
+   409→          {/* Photo preview */}
+   410→          {form.photoPath && (
+   411→            <div className="lg:col-span-2 space-y-3">
+   412→              <Card>
+   413→                <CardHeader className="pb-3">
+   414→                  <CardTitle className="text-base flex items-center justify-between">
+   415→                    <span>Document</span>
+   416→                    <Button variant="ghost" size="sm" onClick={() => cameraInputRef.current?.click()}>
+   417→                      <RotateCcw className="w-3 h-3 mr-1" /> Retake
+   418→                    </Button>
+   419→                  </CardTitle>
+   420→                </CardHeader>
+   421→                <CardContent>
+   422→                  <div className="relative">
+   423→                    {isImageFile ? (
+   424→                      <img src={form.photoPreview || form.photoPath} alt="Document" className="w-full rounded-md border border-slate-200" />
+   425→                    ) : (
+   426→                      <div className="flex flex-col items-center justify-center p-8 rounded-md border border-slate-200 bg-slate-50 text-center">
+   427→                        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
+   428→                          <FileText className="w-8 h-8 text-emerald-600" />
+   429→                        </div>
+   430→                        <div className="text-sm font-medium text-slate-900 break-all">{uploadedFileName || "Document"}</div>
+   431→                        <div className="text-xs text-slate-500 mt-1">{form.photoPath?.split(".").pop()?.toUpperCase()} file</div>
+   432→                        <a href={form.photoPath} target="_blank" rel="noreferrer" className="mt-3 text-xs text-emerald-700 hover:underline flex items-center gap-1">
+   433→                          <ExternalLink className="w-3 h-3" /> Open file
+   434→                        </a>
+   435→                      </div>
+   436→                    )}
+   437→                    {extracting && (
+   438→                      <div className="absolute inset-0 bg-black/40 rounded-md flex items-center justify-center">
+   439→                        <div className="text-white text-center">
+   440→                          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+   441→                          <div className="text-sm">Extracting…</div>
+   442→                        </div>
+   443→                      </div>
+   444→                    )}
+   445→                  </div>
+   446→                  {extracted && (
+   447→                    <div className="mt-3">
+   448→                      <Button variant="outline" size="sm" className="w-full" onClick={() => setShowRawText((v) => !v)}>
+   449→                        <Sparkles className="w-3 h-3 mr-1" />
+   450→                        {showRawText ? "Hide" : "Show"} extracted text
+   451→                      </Button>
+   452→                      {showRawText && (
+   453→                        <div className="mt-2 text-xs bg-slate-50 border border-slate-200 rounded p-2 max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
+   454→                          {extracted.rawText}
+   455→                        </div>
+   456→                      )}
+   457→                    </div>
+   458→                  )}
+   459→                </CardContent>
+   460→              </Card>
+   461→              {extracted && (
+   462→                <div className="rounded-md bg-emerald-50 border border-emerald-200 p-3">
+   463→                  <div className="flex items-start gap-2">
+   464→                    <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" />
+   465→                    <div className="text-xs text-emerald-800">
+   466→                      <div className="font-medium">AI extraction complete</div>
+   467→                      <div className="mt-1 opacity-90">
+   468→                        Fields above are auto-filled. Please review and fill in the remaining fields (Assigned To, Target Date, Status, Priority).
+   469→                      </div>
+   470→                    </div>
+   471→                  </div>
+   472→                </div>
+   473→              )}
+   474→              {extractError && !extracting && (
+   475→                <div className="rounded-md bg-red-50 border border-red-200 p-3">
+   476→                  <div className="flex items-start gap-2">
+   477→                    <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+   478→                    <div className="text-xs text-red-800 flex-1 min-w-0">
+   479→                      <div className="font-medium">AI extraction failed</div>
+   480→                      <div className="mt-1 opacity-90 break-words">{extractError}</div>
+   481→                      <div className="mt-2 flex gap-2">
+   482→                        <Button size="sm" variant="outline" className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-100" onClick={handleRetryExtraction}>
+   483→                          <RotateCcw className="w-3 h-3 mr-1" /> Retry extraction
+   484→                        </Button>
+   485→                      </div>
+   486→                      <div className="mt-1.5 opacity-75">You can still fill in the fields manually below and save.</div>
+   487→                    </div>
+   488→                  </div>
+   489→                </div>
+   490→              )}
+   491→            </div>
+   492→          )}
+   493→
+   494→          {/* Form */}
+   495→          <div className={form.photoPath ? "lg:col-span-3" : ""}>
+   496→            <Card>
+   497→              <CardHeader>
+   498→                <CardTitle className="text-base">
+   499→                  {form.photoPath ? "Record Details" : "Enter Record Details Manually"}
+   500→                </CardTitle>
+   501→              </CardHeader>
+   502→              <CardContent className="space-y-4">
+   503→                <div className="grid grid-cols-2 gap-3">
+   504→                  <Field label="Date Received" required>
+   505→                    <Input type="date" value={form.dateReceived} onChange={(e) => update("dateReceived", e.target.value)} />
+   506→                  </Field>
+   507→                  <Field label="Time Received">
+   508→                    <Input type="time" value={form.timeReceived || ""} onChange={(e) => update("timeReceived", e.target.value || null)} />
+   509→                  </Field>
+   510→                </div>
+   511→                <Field label="Document Type">
+   512→                  <Select value={form.documentType || ""} onValueChange={(v) => update("documentType", v)}>
+   513→                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+   514→                    <SelectContent>
+   515→                      {DOCUMENT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+   516→                    </SelectContent>
+   517→                  </Select>
+   518→                </Field>
+   519→                <Field label="Date of Document">
+   520→                  <Input type="date" value={form.dateOfDocument || ""} onChange={(e) => update("dateOfDocument", e.target.value || null)} />
+   521→                </Field>
+   522→                <Field label="From (Office / Person)">
+   523→                  <Input list="sender-list" value={form.fromOffice || ""} onChange={(e) => update("fromOffice", e.target.value || null)} placeholder="e.g. DA Central Office - PMS" />
+   524→                  <datalist id="sender-list">
+   525→                    {dropdownOptions.sender.map((s) => <option key={s} value={s} />)}
+   526→                  </datalist>
+   527→                </Field>
+   528→                <Field label="Subject / Title">
+   529→                  <Textarea value={form.subject || ""} onChange={(e) => update("subject", e.target.value || null)} placeholder="Subject line or title of the communication" rows={2} />
+   530→                </Field>
+   531→                <Field label="Reference No.">
+   532→                  <Input value={form.referenceNo || ""} onChange={(e) => update("referenceNo", e.target.value || null)} placeholder="e.g. RDC 5 Resolution No. 1-14, s. 2026" />
+   533→                </Field>
+   534→                <div className="grid grid-cols-2 gap-3">
+   535→                  <Field label="Assigned To">
+   536→                    <Select value={form.assignedTo || ""} onValueChange={(v) => update("assignedTo", v)}>
+   537→                      <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
+   538→                      <SelectContent>
+   539→                        {(form.assignedTo && !dropdownOptions.assignedTo.includes(form.assignedTo) ? [<SelectItem key={form.assignedTo} value={form.assignedTo}>{form.assignedTo}</SelectItem>] : []).concat(dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
+   540→                      </SelectContent>
+   541→                    </Select>
+   542→                  </Field>
+   543→                  <Field label="Status">
+   544→                    <Select value={form.status || ""} onValueChange={(v) => update("status", v)}>
+   545→                      <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+   546→                      <SelectContent>
+   547→                        {(form.status && !dropdownOptions.status.includes(form.status) ? [<SelectItem key={form.status} value={form.status}>{form.status}</SelectItem>] : []).concat(dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>))}
+   548→                      </SelectContent>
+   549→                    </Select>
+   550→                  </Field>
+   551→                </div>
+   552→                <div className="grid grid-cols-2 gap-3">
+   553→                  <Field label="Priority">
+   554→                    <Select value={form.priority || ""} onValueChange={(v) => update("priority", v)}>
+   555→                      <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
+   556→                      <SelectContent>
+   557→                        {PRIORITIES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+   558→                      </SelectContent>
+   559→                    </Select>
+   560→                  </Field>
+   561→                  <Field label="Activity Category">
+   562→                    <Select value={form.activityCategory || ""} onValueChange={(v) => update("activityCategory", v)}>
+   563→                      <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+   564→                      <SelectContent>
+   565→                        {(form.activityCategory && !dropdownOptions.activityCategory.includes(form.activityCategory) ? [<SelectItem key={form.activityCategory} value={form.activityCategory}>{form.activityCategory}</SelectItem>] : []).concat(dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>))}
+   566→                      </SelectContent>
+   567→                    </Select>
+   568→                  </Field>
+   569→                </div>
+   570→                <div className="grid grid-cols-2 gap-3">
+   571→                  <Field label="Target Date (Deadline)">
+   572→                    <Input type="date" value={form.targetDate || ""} onChange={(e) => update("targetDate", e.target.value || null)} />
+   573→                  </Field>
+   574→                  <Field label="Activity Date & Start Time">
+   575→                    <Input type="datetime-local" value={form.activityDateTime || ""} onChange={(e) => update("activityDateTime", e.target.value || null)} />
+   576→                  </Field>
+   577→                </div>
+   578→                <div className="grid grid-cols-2 gap-3">
+   579→                  <Field label="Activity End Time (if range)">
+   580→                    <Input type="time" value={form.activityEndTime || ""} onChange={(e) => update("activityEndTime", e.target.value || null)} />
+   581→                  </Field>
+   582→                  <Field label="Date Completed (if done)">
+   583→                    <Input type="date" value={form.dateCompleted || ""} onChange={(e) => update("dateCompleted", e.target.value || null)} />
+   584→                  </Field>
+   585→                </div>
+   586→                <Field label="Remarks / Action Taken">
+   587→                  <Textarea value={form.remarks || ""} onChange={(e) => update("remarks", e.target.value || null)} placeholder="Notes, action taken, or disposition" rows={2} />
+   588→                </Field>
+   589→                <div className="flex flex-wrap gap-2 pt-3 border-t">
+   590→                  <Button onClick={handleSave} disabled={!canSave || saving} className="bg-emerald-600 hover:bg-emerald-700">
+   591→                    {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving…</> : <><Save className="w-4 h-4 mr-1" /> Save Record</>}
+   592→                  </Button>
+   593→                  <Button variant="outline" onClick={handleReset} disabled={saving}>Reset</Button>
+   594→                  {!canSave && (
+   595→                    <div className="text-xs text-amber-700 flex items-center gap-1 ml-2">
+   596→                      <AlertCircle className="w-3 h-3" />
+   597→                      {mode === "manual" ? "Enter at least a subject to save." : "Add a photo or at least a subject to save."}
+   598→                    </div>
+   599→                  )}
+   600→                </div>
+   601→              </CardContent>
+   602→            </Card>
+   603→          </div>
+   604→        </div>
+   605→      )}
+   606→    </div>
+   607→  );
+   608→}
+   609→
+   610→function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+   611→  return (
+   612→    <div className="space-y-1.5">
+   613→      <Label className="text-xs font-medium text-slate-700">
+   614→        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+   615→      </Label>
+   616→      {children}
+   617→    </div>
+   618→  );
+   619→}
+   620→

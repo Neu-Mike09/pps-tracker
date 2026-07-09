@@ -29,7 +29,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return isNaN(d.getTime()) ? null : d;
   };
 
-   
+  // Parse a date AND detect whether a time was explicitly provided.
+  // - "2026-07-10" (no "T") → date-only → hasTime=false (all-day event)
+  // - "2026-07-22T08:00" → hasTime=true (timed event)
+  // - "2026-07-22T00:00" → time at midnight, treat as no time (user didn't pick a time)
+  const parseDateWithTimeFlag = (
+    v: string | null | undefined
+  ): { date: Date | null; hasTime: boolean } => {
+    if (!v) return { date: null, hasTime: false };
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return { date: null, hasTime: false };
+    const str = String(v);
+    if (!str.includes("T")) return { date: d, hasTime: false };
+    const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
+    return { date: d, hasTime };
+  };
+
   const data: any = {};
   if (body.dateReceived !== undefined) data.dateReceived = parseDate(body.dateReceived) || existing.dateReceived;
   if (body.timeReceived !== undefined) data.timeReceived = body.timeReceived || null;
@@ -39,20 +54,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.subject !== undefined) data.subject = body.subject;
   if (body.referenceNo !== undefined) data.referenceNo = body.referenceNo;
   if (body.assignedTo !== undefined) data.assignedTo = body.assignedTo;
-  if (body.targetDate !== undefined) data.targetDate = parseDate(body.targetDate);
+  if (body.targetDate !== undefined) {
+    const parsed = parseDateWithTimeFlag(body.targetDate);
+    data.targetDate = parsed.date;
+    data.targetDateHasTime = parsed.hasTime;
+  }
   if (body.dateCompleted !== undefined) data.dateCompleted = parseDate(body.dateCompleted);
   if (body.status !== undefined) data.status = body.status;
   if (body.activityCategory !== undefined) data.activityCategory = body.activityCategory;
   if (body.remarks !== undefined) data.remarks = body.remarks;
   if (body.priority !== undefined) data.priority = body.priority;
   if (body.activityDateTime !== undefined) {
-    const v = body.activityDateTime;
-    if (!v || v === "") {
-      data.activityDateTime = null;
-    } else {
-      const d = new Date(v);
-      data.activityDateTime = isNaN(d.getTime()) ? null : d;
-    }
+    const parsed = parseDateWithTimeFlag(body.activityDateTime);
+    data.activityDateTime = parsed.date;
+    data.activityDateTimeHasTime = parsed.hasTime;
   }
   if (body.activityEndTime !== undefined) data.activityEndTime = body.activityEndTime || null;
   if (body.photoPath !== undefined) data.photoPath = body.photoPath;

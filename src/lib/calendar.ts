@@ -38,35 +38,81 @@ interface CommunicationForCalendar {
   activityCategory: string | null;
   remarks: string | null;
   targetDate: Date | null;
+  targetDateHasTime: boolean;
   activityDateTime: Date | null;
+  activityDateTimeHasTime: boolean;
+  activityEndTime: string | null;
   documentType: string | null;
 }
 
-/**
- * Build a Google Calendar event object from a Communication record.
- *
- * Scheduling logic:
- * - If activityDateTime is set → use it as a timed event (1 hour duration)
- * - Else if targetDate is set → use it as an all-day event
- * - Else → no event (returns null)
- */
-function buildEvent(comm: CommunicationForCalendar) {
-  let start: { dateTime?: string; date?: string } | null = null;
-  let end: { dateTime?: string; date?: string } | null = null;
+type EventType = "activity" | "deadline";
 
-  if (comm.activityDateTime) {
-    const startTime = comm.activityDateTime.toISOString();
-    const endTime = new Date(comm.activityDateTime.getTime() + 60 * 60 * 1000).toISOString();
+/**
+ * Format a Date as YYYY-MM-DD using LOCAL time components (not UTC).
+ * Critical for all-day calendar events — using UTC would shift the date
+ * to the previous day in timezones east of GMT (e.g., Philippines UTC+8).
+ */
+function formatLocalDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * Build a Google Calendar event object for either the Activity date or the Deadline date.
+ *
+ * Scheduling logic per date:
+ * - If the date has a time component (hasTime=true) → timed event
+ *     - For activity: start = activityDateTime, end = activityEndTime (if provided) else start + 1 hour
+ * - If the date has no time (hasTime=false) → all-day event
+ *     - start = date (YYYY-MM-DD LOCAL), end = next day (Google's exclusive end convention)
+ */
+function buildEvent(comm: CommunicationForCalendar, type: EventType) {
+  let dateValue: Date | null;
+  let hasTime: boolean;
+
+  if (type === "activity") {
+    dateValue = comm.activityDateTime;
+    hasTime = comm.activityDateTimeHasTime;
+  } else {
+    dateValue = comm.targetDate;
+    hasTime = comm.targetDateHasTime;
+  }
+
+  if (!dateValue) return null;
+
+  let start: { dateTime?: string; date?: string };
+  let end: { dateTime?: string; date?: string };
+
+  if (hasTime) {
+    // Timed event — use ISO strings with timezone
+    const startTime = dateValue.toISOString();
+    let endTime: string;
+
+    if (type === "activity" && comm.activityEndTime) {
+      // activityEndTime is "HH:MM" (24h). Combine with the activity date's LOCAL date.
+      const [hh, mm] = comm.activityEndTime.split(":").map((s) => parseInt(s, 10));
+      if (!isNaN(hh) && !isNaN(mm)) {
+        const endDt = new Date(dateValue);
+        endDt.setHours(hh, mm, 0, 0);
+        endTime = endDt.toISOString();
+      } else {
+        endTime = new Date(dateValue.getTime() + 60 * 60 * 1000).toISOString();
+      }
+    } else {
+      // Default: 1 hour duration
+      endTime = new Date(dateValue.getTime() + 60 * 60 * 1000).toISOString();
+    }
+
     start = { dateTime: startTime };
     end = { dateTime: endTime };
-  } else if (comm.targetDate) {
-    const startDate = comm.targetDate.toISOString().slice(0, 10);
-    const endDateObj = new Date(comm.targetDate.getTime() + 24 * 60 * 60 * 1000);
-    const endDate = endDateObj.toISOString().slice(0, 10);
+  } else {
+    // All-day event using LOCAL date (not UTC, which would shift to prev day in PH timezone)
+    const startDate = formatLocalDate(dateValue);
+    const endDateObj = new Date(dateValue);
+    endDateObj.setDate(endDateObj.getDate() + 1);
+    const endDate = formatLocalDate(endDateObj);
     start = { date: startDate };
     end = { date: endDate };
-  } else {
-    return null;
   }
 
   const lines: string[] = [];
@@ -78,17 +124,42 @@ function buildEvent(comm: CommunicationForCalendar) {
   if (comm.status) lines.push(`Status: ${comm.status}`);
   if (comm.priority) lines.push(`Priority: ${comm.priority}`);
   if (comm.activityCategory) lines.push(`Category: ${comm.activityCategory}`);
-  if (comm.targetDate) lines.push(`Target Date: ${comm.targetDate.toISOString().slice(0, 10)}`);
+
+  // Show BOTH dates in the description so the user can see context regardless of which event they're viewing
+  if (comm.activityDateTime) {
+    const aTime = comm.activityDateTimeHasTime
+      ? comm.activityDateTime.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+      : formatLocalDate(comm.activityDateTime);
+    let aLine = `Activity Date: ${aTime}`;
+    if (comm.activityDateTimeHasTime && comm.activityEndTime) aLine += ` - ${comm.activityEndTime}`;
+    lines.push(aLine);
+  }
+  if (comm.targetDate) {
+    const tTime = comm.targetDateHasTime
+      ? comm.targetDate.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+      : formatLocalDate(comm.targetDate);
+    lines.push(`Deadline: ${tTime}`);
+  }
+
   if (comm.remarks) lines.push(`\nRemarks: ${comm.remarks}`);
   lines.push(`\n--- Synced from DA RFO 5 PPS Communications Tracker`);
 
-  const title = `${comm.controlNo} — ${comm.subject || "(no subject)"}`;
+  // Title indicates event type
+  const typeLabel = type === "activity" ? "Activity" : "Deadline";
+  const title = `${typeLabel}: ${comm.controlNo} — ${comm.subject || "(no subject)"}`;
 
+  // Color coding
+  // - Deadline events: red/orange (colorId 11 = red) so they stand out
+  // - Activity events: based on status/priority
   let colorId: string | undefined;
-  if (comm.status === "Accomplished" || comm.status === "Attended") colorId = "2";
-  else if (comm.status === "Cancelled") colorId = "4";
-  else if (comm.status === "Pending" || comm.status === "In Progress" || comm.status === "For Compliance") colorId = "5";
-  else if (comm.priority === "Urgent") colorId = "11";
+  if (type === "deadline") {
+    colorId = "11"; // red — deadlines stand out
+  } else {
+    if (comm.status === "Accomplished" || comm.status === "Attended") colorId = "2"; // green
+    else if (comm.status === "Cancelled") colorId = "4"; // red
+    else if (comm.status === "Pending" || comm.status === "In Progress" || comm.status === "For Compliance") colorId = "5"; // yellow
+    else if (comm.priority === "Urgent") colorId = "11"; // red
+  }
 
   return {
     summary: title,
@@ -101,75 +172,46 @@ function buildEvent(comm: CommunicationForCalendar) {
         source: "pps-tracker",
         communicationId: comm.id,
         controlNo: comm.controlNo,
+        eventType: type,
       },
     },
   };
 }
 
 /**
- * Create (or update) a Google Calendar event for a communication record.
+ * Upsert a single calendar event (either the activity event or the deadline event).
+ * Returns the resulting event ID (or null if skipped).
  */
-export async function syncCalendarEvent(communicationId: string): Promise<{
-  action: "created" | "updated" | "skipped" | "deleted";
-  eventId?: string;
-}> {
-  const comm = await db.communication.findUnique({
-    where: { id: communicationId },
-  });
-  if (!comm) throw new Error("Communication not found");
+async function upsertEvent(
+  calendar: Awaited<ReturnType<typeof getCalendarClient>>,
+  calendarId: string,
+  comm: CommunicationForCalendar,
+  type: EventType,
+  existingEventId: string | null
+): Promise<{ action: "created" | "updated" | "skipped" | "deleted"; eventId: string | null }> {
+  const eventData = buildEvent(comm, type);
 
-  if (!comm.targetDate && !comm.activityDateTime) {
-    if (comm.calendarEventId) {
-      const calendar = await getCalendarClient();
-      const calendarId = await getCalendarId();
+  if (!eventData) {
+    // No date for this event type — delete any existing event
+    if (existingEventId) {
       try {
-        await calendar.events.delete({ calendarId, eventId: comm.calendarEventId });
+        await calendar.events.delete({ calendarId, eventId: existingEventId });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (!msg.includes("404") && !msg.toLowerCase().includes("not found")) throw e;
       }
     }
-    await db.communication.update({
-      where: { id: communicationId },
-      data: {
-        calendarEventId: null,
-        calendarSyncStatus: "skipped",
-        calendarSyncError: null,
-        calendarSyncedAt: new Date(),
-      },
-    });
-    return { action: "skipped" };
+    return { action: "skipped", eventId: null };
   }
 
-  const eventData = buildEvent(comm);
-  if (!eventData) {
-    await db.communication.update({
-      where: { id: communicationId },
-      data: { calendarSyncStatus: "skipped", calendarSyncedAt: new Date() },
-    });
-    return { action: "skipped" };
-  }
-
-  const calendar = await getCalendarClient();
-  const calendarId = await getCalendarId();
-
-  if (comm.calendarEventId) {
+  if (existingEventId) {
     try {
       const updated = await calendar.events.update({
         calendarId,
-        eventId: comm.calendarEventId,
+        eventId: existingEventId,
         requestBody: eventData,
       });
-      await db.communication.update({
-        where: { id: communicationId },
-        data: {
-          calendarEventId: updated.data.id || comm.calendarEventId,
-          calendarSyncStatus: "synced",
-          calendarSyncError: null,
-          calendarSyncedAt: new Date(),
-        },
-      });
-      return { action: "updated", eventId: updated.data.id || undefined };
+      return { action: "updated", eventId: updated.data.id || existingEventId };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
@@ -181,38 +223,138 @@ export async function syncCalendarEvent(communicationId: string): Promise<{
   }
 
   const created = await calendar.events.insert({ calendarId, requestBody: eventData });
-  const newEventId = created.data.id;
-  if (!newEventId) throw new Error("Google Calendar did not return an event ID");
+  return { action: "created", eventId: created.data.id || null };
+}
 
+/**
+ * Create (or update) Google Calendar events for a communication record.
+ *
+ * If BOTH activityDateTime and targetDate are set, TWO separate calendar events are created:
+ *   1. Activity event (stored in calendarEventId)
+ *   2. Deadline event (stored in deadlineCalendarEventId)
+ *
+ * Each event is timed or all-day based on whether the source date has a time component.
+ */
+export async function syncCalendarEvent(communicationId: string): Promise<{
+  action: "created" | "updated" | "skipped" | "deleted";
+  eventId?: string;
+}> {
+  const comm = await db.communication.findUnique({
+    where: { id: communicationId },
+  });
+  if (!comm) throw new Error("Communication not found");
+
+  const calendar = await getCalendarClient();
+  const calendarId = await getCalendarId();
+
+  const commForCalendar: CommunicationForCalendar = {
+    id: comm.id,
+    controlNo: comm.controlNo,
+    subject: comm.subject,
+    fromOffice: comm.fromOffice,
+    referenceNo: comm.referenceNo,
+    assignedTo: comm.assignedTo,
+    status: comm.status,
+    priority: comm.priority,
+    activityCategory: comm.activityCategory,
+    remarks: comm.remarks,
+    targetDate: comm.targetDate,
+    targetDateHasTime: comm.targetDateHasTime,
+    activityDateTime: comm.activityDateTime,
+    activityDateTimeHasTime: comm.activityDateTimeHasTime,
+    activityEndTime: comm.activityEndTime,
+    documentType: comm.documentType,
+  };
+
+  // Sync the activity event (if activityDateTime is set)
+  let activityResult: { action: string; eventId: string | null } = { action: "skipped", eventId: null };
+  if (comm.activityDateTime) {
+    try {
+      activityResult = await upsertEvent(calendar, calendarId, commForCalendar, "activity", comm.calendarEventId);
+    } catch (e) {
+      // Surface error to caller but continue with deadline sync
+      const errMsg = e instanceof Error ? e.message : String(e);
+      await db.communication.update({
+        where: { id: communicationId },
+        data: { calendarSyncStatus: "failed", calendarSyncError: `Activity event: ${errMsg}` },
+      });
+      throw e;
+    }
+  } else if (comm.calendarEventId) {
+    // Activity date was cleared — delete the existing activity event
+    try {
+      await calendar.events.delete({ calendarId, eventId: comm.calendarEventId });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes("404") && !msg.toLowerCase().includes("not found")) throw e;
+    }
+    activityResult = { action: "deleted", eventId: null };
+  }
+
+  // Sync the deadline event (if targetDate is set)
+  let deadlineResult: { action: string; eventId: string | null } = { action: "skipped", eventId: null };
+  if (comm.targetDate) {
+    try {
+      deadlineResult = await upsertEvent(calendar, calendarId, commForCalendar, "deadline", comm.deadlineCalendarEventId);
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      await db.communication.update({
+        where: { id: communicationId },
+        data: { calendarSyncStatus: "failed", calendarSyncError: `Deadline event: ${errMsg}` },
+      });
+      throw e;
+    }
+  } else if (comm.deadlineCalendarEventId) {
+    // Deadline was cleared — delete the existing deadline event
+    try {
+      await calendar.events.delete({ calendarId, eventId: comm.deadlineCalendarEventId });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes("404") && !msg.toLowerCase().includes("not found")) throw e;
+    }
+    deadlineResult = { action: "deleted", eventId: null };
+  }
+
+  // Update the record with new event IDs
+  const hasAnyEvent = !!activityResult.eventId || !!deadlineResult.eventId;
   await db.communication.update({
     where: { id: communicationId },
     data: {
-      calendarEventId: newEventId,
-      calendarSyncStatus: "synced",
+      calendarEventId: activityResult.eventId,
+      deadlineCalendarEventId: deadlineResult.eventId,
+      calendarSyncStatus: hasAnyEvent ? "synced" : "skipped",
       calendarSyncError: null,
       calendarSyncedAt: new Date(),
     },
   });
-  return { action: "created", eventId: newEventId };
+
+  // For backwards compat with callers that check the return value
+  if (activityResult.eventId) return { action: activityResult.action as any, eventId: activityResult.eventId };
+  if (deadlineResult.eventId) return { action: deadlineResult.action as any, eventId: deadlineResult.eventId };
+  return { action: "skipped" };
 }
 
 /**
- * Delete a Google Calendar event for a communication record.
+ * Delete ALL Google Calendar events (activity + deadline) for a communication record.
  */
 export async function deleteCalendarEvent(communicationId: string): Promise<void> {
   const comm = await db.communication.findUnique({
     where: { id: communicationId },
-    select: { calendarEventId: true },
+    select: { calendarEventId: true, deadlineCalendarEventId: true },
   });
-  if (!comm?.calendarEventId) return;
+  if (!comm) return;
 
   const calendar = await getCalendarClient();
   const calendarId = await getCalendarId();
-  try {
-    await calendar.events.delete({ calendarId, eventId: comm.calendarEventId });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!msg.includes("404") && !msg.toLowerCase().includes("not found")) throw e;
+
+  const eventIds = [comm.calendarEventId, comm.deadlineCalendarEventId].filter(Boolean) as string[];
+  for (const eventId of eventIds) {
+    try {
+      await calendar.events.delete({ calendarId, eventId });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes("404") && !msg.toLowerCase().includes("not found")) throw e;
+    }
   }
 }
 

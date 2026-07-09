@@ -142,6 +142,31 @@ export async function POST(req: NextRequest) {
       return isNaN(d.getTime()) ? null : d;
     };
 
+    // Parse a date AND determine whether the source value explicitly included a time.
+    // - "2026-07-10" (10 chars, no "T") → date-only → hasTime=false (all-day event)
+    // - "2026-07-22T08:00" or any ISO with "T" and a non-midnight local time → hasTime=true (timed event)
+    // - "2026-07-22T00:00" → ambiguous; treat as no time (user didn't pick a time in datetime-local)
+    const parseDateWithTimeFlag = (
+      v: string | null | undefined
+    ): { date: Date | null; hasTime: boolean } => {
+      if (!v) return { date: null, hasTime: false };
+      const d = new Date(v);
+      if (isNaN(d.getTime())) return { date: null, hasTime: false };
+      const str = String(v);
+      const hasT = str.includes("T");
+      // If no "T" in the string → no time was specified
+      if (!hasT) return { date: d, hasTime: false };
+      // If "T" present but all time components are 00:00 → user left time at midnight, treat as no time
+      const hours = d.getHours();
+      const minutes = d.getMinutes();
+      const seconds = d.getSeconds();
+      const hasTime = hours !== 0 || minutes !== 0 || seconds !== 0;
+      return { date: d, hasTime };
+    };
+
+    const activityParsed = parseDateWithTimeFlag(body.activityDateTime);
+    const targetParsed = parseDateWithTimeFlag(body.targetDate);
+
     const recordData = {
       dateReceived,
       timeReceived: body.timeReceived || null,
@@ -151,14 +176,16 @@ export async function POST(req: NextRequest) {
       subject: body.subject || null,
       referenceNo: body.referenceNo || null,
       assignedTo: body.assignedTo || null,
-      targetDate: parseDate(body.targetDate),
+      targetDate: targetParsed.date,
+      targetDateHasTime: targetParsed.hasTime,
       dateCompleted: parseDate(body.dateCompleted),
       status: body.status || null,
       activityCategory: body.activityCategory || null,
       remarks: body.remarks || null,
       year,
       priority: body.priority || null,
-      activityDateTime: parseDate(body.activityDateTime),
+      activityDateTime: activityParsed.date,
+      activityDateTimeHasTime: activityParsed.hasTime,
       activityEndTime: body.activityEndTime || null,
       photoPath: body.photoPath || null,
       syncStatus: "pending",

@@ -37,7 +37,7 @@ Fields:
 6. "activityCategorySuggestion" — one of: ${opts.activityCategory.map((c) => `"${c}"`).join(", ")}
 7. "activityDateTimeSuggestion" — if the document announces a meeting/event/activity/schedule, return the START date+time in ISO format (YYYY-MM-DDTHH:MM:00). If only a date is given (no time), use just the date (YYYY-MM-DD). If no activity is scheduled, return null. If a time range is given (e.g., "9:00 AM to 4:00 PM"), use the START time (9:00 AM). Look for phrases like "on June 11, 2026 at 9:30 AM", "scheduled on", "to be held on", "meeting on", "from 8:00 AM to 4:00 PM".
 8. "activityEndTimeSuggestion" — if the activity has an end time (e.g., "8:00 AM - 4:00 PM"), return the end time in HH:MM format (24-hour). For "4:00 PM" return "16:00". If no end time is mentioned, return null.
-9. "targetDateSuggestion" — deadline date YYYY-MM-DD or null. Look for: "no later than", "deadline for submission", "on or before", "due on"
+9. "targetDateSuggestion" — deadline date in YYYY-MM-DD format (date only, NO time). Look for: "no later than", "deadline for submission", "on or before", "due on". Deadlines are typically whole-day events — do NOT include a time even if the document mentions one incidentally.
 10. "prioritySuggestion" — one of: ${PRIORITIES.map((p) => `"${p}"`).join(", ")}. Urgent if URGENT/IMMEDIATE, High if deadline within 2 weeks, Normal default
 11. "rawText" — full text transcript
 

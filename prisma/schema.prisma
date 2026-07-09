@@ -40,11 +40,14 @@ model Communication {
   priority         String?
   activityDateTime DateTime?
   activityEndTime   String?  // end time for activities with time ranges (e.g., "16:00")
+  activityDateTimeHasTime Boolean @default(false) // true if a time was specified (timed event); false = all-day event
+  targetDateHasTime       Boolean @default(false) // true if deadline has a specific time; false = whole-day deadline
   photoPath        String?
   sheetSyncedAt    DateTime?
   syncStatus       String   @default("pending")
   syncError        String?
-  calendarEventId  String?
+  calendarEventId         String? // Activity event ID (or single event if only one date exists)
+  deadlineCalendarEventId String? // Deadline event ID (separate calendar event for targetDate)
   calendarSyncedAt DateTime?
   calendarSyncStatus String @default("pending")
   calendarSyncError String?

@@ -104,6 +104,11 @@ async function fetchWithTimeout(url: string, options: RequestInit, ms: number): 
 
 const toLocalDateTime = (iso: string | null): string | null => {
   if (!iso) return null;
+  // Date-only format (YYYY-MM-DD) — no time was mentioned in the source document.
+  // Return as midnight so the API detects hasTime=false → all-day calendar event.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    return `${iso}T00:00`;
+  }
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
   const pad = (n: number) => String(n).padStart(2, "0");

@@ -81,6 +81,8 @@ interface Record {
   priority: string | null;
   activityDateTime: string | null;
   activityEndTime: string | null;
+  activityDateTimeHasTime: boolean;
+  targetDateHasTime: boolean;
   photoPath: string | null;
   syncStatus: string;
   syncError: string | null;
@@ -527,11 +529,14 @@ export function RecordsView() {
                           </td>
                           <td className="p-3 text-xs">
                             {fmtDate(r.activityDateTime)}
-                            {r.activityDateTime && (
+                            {r.activityDateTime && r.activityDateTimeHasTime && (
                               <div className="text-[10px] text-slate-500">
                                 {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
                                 {r.activityEndTime ? ` - ${fmtTime12(r.activityEndTime)}` : ""}
                               </div>
+                            )}
+                            {r.activityDateTime && !r.activityDateTimeHasTime && (
+                              <div className="text-[10px] text-slate-400 italic">All day</div>
                             )}
                           </td>
                           <td className="p-3">
@@ -605,7 +610,7 @@ export function RecordsView() {
                       </div>
                       {r.activityDateTime && (
                         <div>
-                          Activity: {fmtDate(r.activityDateTime)} {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}{r.activityEndTime ? ` - ${fmtTime12(r.activityEndTime)}` : ""}
+                          Activity: {fmtDate(r.activityDateTime)}{r.activityDateTimeHasTime ? ` ${new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}${r.activityEndTime ? ` - ${fmtTime12(r.activityEndTime)}` : ""}` : " (all day)"}
                         </div>
                       )}
                     </div>
