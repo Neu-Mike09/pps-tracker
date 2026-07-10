@@ -17,6 +17,6 @@ copyDir(path.join(process.cwd(), "public"), path.join(standalone, "public"));
 
 const nm = path.join(process.cwd(), "node_modules");
 const snm = path.join(standalone, "node_modules");
-["bcryptjs", "@google/generative-ai", "xlsx"].forEach((pkg) => copyDir(path.join(nm, pkg), path.join(snm, pkg)));
+["bcryptjs", "@google/generative-ai", "xlsx", "sharp"].forEach((pkg) => copyDir(path.join(nm, pkg), path.join(snm, pkg)));
 
 console.log("=== Post-build complete ===");

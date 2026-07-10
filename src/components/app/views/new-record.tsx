@@ -38,6 +38,7 @@ import {
   DOCUMENT_TYPES,
   PRIORITIES,
 } from "@/lib/constants";
+import { compressImage, formatFileSize } from "@/lib/compress-image";
 
 interface ExtractedData {
   documentType: string | null;
@@ -143,12 +144,15 @@ export function NewRecordView() {
 
   // Multi-file upload state
   interface UploadedItem {
-    file: File;
+    file: File; // The file to upload (may be compressed version of originalFile)
+    originalFile?: File; // Original uncompressed file (for display name)
     path: string; // /api/files/<id> returned by upload API
     preview: string | null; // object URL for images, null for non-images
     isImage: boolean;
     uploading: boolean;
     error: string | null;
+    compressedSize?: number; // Size after compression
+    originalSize?: number; // Original size before compression
   }
   const [uploadedFiles, setUploadedFiles] = useState<UploadedItem[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState(0);
@@ -206,17 +210,41 @@ export function NewRecordView() {
     setExtractError(null);
     lastFileRef.current = toAdd[0];
 
-    // Add files as "uploading" placeholders
-    const newItems: UploadedItem[] = toAdd.map((file) => {
-      const ext = file.name.split(".").pop()?.toLowerCase() || "";
-      const isImg = ["jpg", "jpeg", "png", "webp", "gif", "bmp"].includes(ext) || file.type.startsWith("image/");
+    // Compress images BEFORE creating upload placeholders
+    // This reduces both upload time and database storage by ~75%
+    const compressionResults = await Promise.all(
+      toAdd.map(async (file) => {
+        const result = await compressImage(file, { maxDimension: 1600, quality: 0.75 });
+        return { originalFile: file, compressedFile: result.file, result };
+      })
+    );
+
+    // Show a summary toast if significant compression happened
+    const totalOriginal = compressionResults.reduce((s, r) => s + r.result.originalSize, 0);
+    const totalCompressed = compressionResults.reduce((s, r) => s + r.result.compressedSize, 0);
+    const compressedCount = compressionResults.filter((r) => r.result.wasCompressed).length;
+    if (compressedCount > 0) {
+      const savings = Math.round((1 - totalCompressed / totalOriginal) * 100);
+      toast({
+        title: "Images compressed",
+        description: `${compressedCount} image(s) compressed: ${formatFileSize(totalOriginal)} → ${formatFileSize(totalCompressed)} (${savings}% smaller)`,
+      });
+    }
+
+    // Add files as "uploading" placeholders — use the COMPRESSED file for upload/extraction
+    const newItems: UploadedItem[] = compressionResults.map(({ originalFile, compressedFile, result }) => {
+      const ext = compressedFile.name.split(".").pop()?.toLowerCase() || "";
+      const isImg = ["jpg", "jpeg", "png", "webp", "gif", "bmp"].includes(ext) || compressedFile.type.startsWith("image/");
       return {
-        file,
+        file: compressedFile, // Store compressed version for upload/extraction
+        originalFile, // Keep reference to original for display name
         path: "",
-        preview: isImg ? URL.createObjectURL(file) : null,
+        preview: isImg ? URL.createObjectURL(compressedFile) : null,
         isImage: isImg,
         uploading: true,
         error: null,
+        compressedSize: result.compressedSize,
+        originalSize: result.originalSize,
       };
     });
 
@@ -683,11 +711,18 @@ export function NewRecordView() {
 
                   {/* File info bar */}
                   <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                    <span className="truncate max-w-[200px]">{uploadedFiles[activeFileIndex]?.file.name}</span>
+                    <div className="truncate max-w-[200px]">
+                      <div className="truncate">{uploadedFiles[activeFileIndex]?.file.name}</div>
+                      {uploadedFiles[activeFileIndex]?.originalSize && uploadedFiles[activeFileIndex]?.compressedSize && uploadedFiles[activeFileIndex]!.originalSize! > uploadedFiles[activeFileIndex]!.compressedSize! && (
+                        <div className="text-[10px] text-emerald-600">
+                          {formatFileSize(uploadedFiles[activeFileIndex]!.originalSize!)} → {formatFileSize(uploadedFiles[activeFileIndex]!.compressedSize!)}
+                        </div>
+                      )}
+                    </div>
                     {uploadedFiles.length === 1 && (
                       <button
                         onClick={() => handleRemoveFile(0)}
-                        className="text-red-600 hover:text-red-700 flex items-center gap-1"
+                        className="text-red-600 hover:text-red-700 flex items-center gap-1 flex-shrink-0"
                       >
                         <Trash2 className="w-3 h-3" /> Remove
                       </button>

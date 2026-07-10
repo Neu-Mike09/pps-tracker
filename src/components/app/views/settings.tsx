@@ -37,6 +37,10 @@ import {
   ExternalLink,
   AlertCircle,
   RefreshCw,
+  HardDrive,
+  Database,
+  FileImage,
+  Zap,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
@@ -79,6 +83,12 @@ export function SettingsView() {
   // Sheets re-sync
   const [sheetsResyncing, setSheetsResyncing] = useState(false);
   const [sheetsResyncResult, setSheetsResyncResult] = useState<{ total: number; success: number; failed: number; skipped: number; appended: number; updated: number; errors: Array<{ controlNo: string; error: string }> } | null>(null);
+
+  // Storage management
+  const [storageReport, setStorageReport] = useState<any>(null);
+  const [storageLoading, setStorageLoading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
+  const [compressResult, setCompressResult] = useState<any>(null);
 
   // Users
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -218,6 +228,38 @@ export function SettingsView() {
     } finally { setSheetsResyncing(false); }
   };
 
+  const loadStorageReport = async () => {
+    setStorageLoading(true);
+    try {
+      const res = await fetch("/api/storage-report");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load storage report");
+      setStorageReport(data);
+    } catch (e) {
+      toast({ title: "Failed to load storage report", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally { setStorageLoading(false); }
+  };
+
+  const handleCompressExisting = async () => {
+    if (!confirm("This will re-compress all existing image files in the database. This cannot be undone. Continue?")) return;
+    setCompressing(true);
+    setCompressResult(null);
+    try {
+      const res = await fetch("/api/compress-existing", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Compression failed");
+      setCompressResult(data);
+      toast({
+        title: "Compression complete",
+        description: `${data.compressed} files compressed, ${data.skipped} skipped (non-image), ${data.alreadySmall} already small. Saved ${data.savingsMB} MB (${data.savingsPercent}% reduction).`,
+      });
+      // Refresh the storage report
+      loadStorageReport();
+    } catch (e) {
+      toast({ title: "Compression failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally { setCompressing(false); }
+  };
+
   const loadOptions = async () => {
     setOptionsLoading(true);
     try {
@@ -259,6 +301,7 @@ export function SettingsView() {
     loadUsers();
     loadCalendarId();
     loadOptions();
+    loadStorageReport();
   }, []);
 
   const handleSaveSettings = async () => {
@@ -400,6 +443,159 @@ export function SettingsView() {
           Configure Google Sheets sync and manage user accounts.
         </p>
       </div>
+
+      {/* Storage Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <HardDrive className="w-4 h-4 text-emerald-600" />
+            Storage Management
+          </CardTitle>
+          <CardDescription>
+            Monitor database storage usage and compress existing files to free up space.
+            New image uploads are automatically compressed (1600px max, JPEG quality 75).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {storageLoading ? (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading storage report…
+            </div>
+          ) : storageReport ? (
+            <>
+              {/* Usage bar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-slate-700">Neon Free Tier Usage</span>
+                  <span className={parseFloat(storageReport.neonFreeTier.usagePercent) > 80 ? "text-red-600 font-semibold" : "text-slate-600"}>
+                    {storageReport.neonFreeTier.usedMB} MB / {storageReport.neonFreeTier.limitMB} MB ({storageReport.neonFreeTier.usagePercent}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${
+                      parseFloat(storageReport.neonFreeTier.usagePercent) > 80 ? "bg-red-500" :
+                      parseFloat(storageReport.neonFreeTier.usagePercent) > 50 ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(parseFloat(storageReport.neonFreeTier.usagePercent), 100)}%` }}
+                  />
+                </div>
+                <div className="text-xs text-slate-500">
+                  {storageReport.neonFreeTier.remainingMB} MB remaining
+                </div>
+              </div>
+
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-md border border-slate-200 p-3 text-center">
+                  <Database className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                  <div className="text-lg font-bold text-slate-900">{storageReport.records.communications}</div>
+                  <div className="text-xs text-slate-500">Records</div>
+                </div>
+                <div className="rounded-md border border-slate-200 p-3 text-center">
+                  <FileImage className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+                  <div className="text-lg font-bold text-slate-900">{storageReport.files.count}</div>
+                  <div className="text-xs text-slate-500">Files</div>
+                </div>
+                <div className="rounded-md border border-slate-200 p-3 text-center">
+                  <HardDrive className="w-5 h-5 text-amber-600 mx-auto mb-1" />
+                  <div className="text-lg font-bold text-slate-900">{storageReport.files.totalSizeMB}</div>
+                  <div className="text-xs text-slate-500">MB used</div>
+                </div>
+                <div className="rounded-md border border-slate-200 p-3 text-center">
+                  <Users className="w-5 h-5 text-purple-600 mx-auto mb-1" />
+                  <div className="text-lg font-bold text-slate-900">{storageReport.records.users}</div>
+                  <div className="text-xs text-slate-500">Users</div>
+                </div>
+              </div>
+
+              {/* By category */}
+              {storageReport.byCategory.length > 0 && (
+                <div className="rounded-md border border-slate-200 p-3">
+                  <div className="text-xs font-medium text-slate-700 mb-2">Storage by file type</div>
+                  <div className="space-y-1">
+                    {storageReport.byCategory.map((cat: any) => (
+                      <div key={cat.category} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-600">{cat.category} ({cat.count} files)</span>
+                        <span className="font-medium text-slate-900">{cat.sizeMB} MB</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Top largest files */}
+              {storageReport.topLargest.length > 0 && (
+                <details>
+                  <summary className="cursor-pointer text-xs font-medium text-slate-700 hover:text-slate-900">
+                    View top 10 largest files
+                  </summary>
+                  <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                    {storageReport.topLargest.map((f: any, i: number) => (
+                      <div key={f.id} className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
+                        <span className="truncate max-w-[250px] text-slate-600">{i + 1}. {f.filename}</span>
+                        <span className="font-medium text-slate-900 flex-shrink-0">{f.sizeMB} MB</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {/* Compress existing files */}
+              <div className="border-t border-slate-200 pt-4">
+                <div className="text-sm font-medium text-slate-900 mb-1 flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  Compress existing files
+                </div>
+                <div className="text-xs text-slate-500 mb-3">
+                  Re-compresses all existing image files in the database using the same settings (1600px max, JPEG quality 75).
+                  Expected savings: 60-85% for images uploaded before compression was enabled. This cannot be undone.
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleCompressExisting}
+                    disabled={compressing}
+                    className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                  >
+                    {compressing
+                      ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Compressing…</>
+                      : <><Zap className="w-4 h-4 mr-1" /> Compress All Existing Images</>}
+                  </Button>
+                  <Button variant="ghost" onClick={loadStorageReport} disabled={storageLoading}>
+                    <RefreshCw className="w-4 h-4 mr-1" /> Refresh report
+                  </Button>
+                </div>
+                {compressResult && (
+                  <div className="mt-3 p-3 rounded-md text-sm bg-emerald-50 border border-emerald-200 text-emerald-800">
+                    <div className="font-medium">Compression complete</div>
+                    <div className="mt-1 text-xs">
+                      {compressResult.compressed} compressed · {compressResult.skipped} skipped (non-image) · {compressResult.alreadySmall} already small · {compressResult.failed} failed
+                    </div>
+                    <div className="mt-1 text-xs font-medium">
+                      Saved {compressResult.savingsMB} MB ({compressResult.savingsPercent}% reduction)
+                    </div>
+                    {compressResult.errors.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs">View {compressResult.errors.length} error(s)</summary>
+                        <ul className="list-disc ml-4 mt-1 text-xs space-y-0.5">
+                          {compressResult.errors.map((err: any, i: number) => (
+                            <li key={i}>{err.filename}: {err.error}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-slate-500">
+              Storage report unavailable. <Button variant="link" className="p-0 h-auto" onClick={loadStorageReport}>Retry</Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Google Sheets */}
       <Card>
