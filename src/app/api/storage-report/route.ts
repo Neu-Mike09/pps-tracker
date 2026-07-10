@@ -100,11 +100,11 @@ export async function GET() {
       // === Actual database size (matches Neon dashboard) ===
       database: {
         actualSizeMB: actualDbSizeMB.toFixed(2),
-        actualSizeBytes,
+        actualSizeBytes: actualDbSizeBytes,
         fileDataMB: fileTotalSizeMB.toFixed(2),
         fileDataBytes: fileTotalSizeBytes,
         overheadMB: overheadMB.toFixed(2),
-        overheadBytes,
+        overheadBytes: overheadBytes,
         overheadPercent: overheadPercent.toFixed(1),
       },
       // === Per-table breakdown ===
