@@ -51,8 +51,6 @@ export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fil
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     // Use gemini-2.5-flash as default (stable model on both free and Pro tiers).
-    // The "gemini-flash-latest" alias can resolve to different models and may
-    // not always support responseMimeType correctly.
     const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({
       model: modelName,
@@ -75,61 +73,9 @@ export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fil
       result = await model.generateContent([`${prompt}\n\n---\n${textContent.slice(0, 15000)}\n---`]);
     }
 
-    const content = result.response.text();
-
-    // Robust JSON parsing — handle multiple response formats
-    let parsed: ExtractedData | null = null;
-
-    // Attempt 1: Direct parse (responseMimeType should force pure JSON)
-    try {
-      parsed = JSON.parse(content) as ExtractedData;
-    } catch {
-      // Attempt 2: Strip markdown code fences (```json ... ```)
-      const stripped = content
-        .replace(/^```json\s*/i, "")
-        .replace(/^```\s*/i, "")
-        .replace(/\s*```$/i, "")
-        .trim();
-      try {
-        parsed = JSON.parse(stripped) as ExtractedData;
-      } catch {
-        // Attempt 3: Extract first JSON object using regex
-        const match = content.match(/\{[\s\S]*\}/);
-        if (match) {
-          try {
-            parsed = JSON.parse(match[0]) as ExtractedData;
-          } catch {
-            // All parsing attempts failed
-          }
-        }
-      }
-    }
-
-    // If parsing failed, return empty result with raw text for debugging
-    if (!parsed) {
-      console.error("[VLM] Failed to parse Gemini response as JSON. Raw content:", content.slice(0, 500));
-      return getEmptyResult(content);
-    }
-
-    // Normalize: ensure all fields exist (Gemini might omit null fields)
-    const result_data: ExtractedData = {
-      documentType: parsed.documentType ?? null,
-      dateOfDocument: parsed.dateOfDocument ?? null,
-      fromOffice: parsed.fromOffice ?? null,
-      subject: parsed.subject ?? null,
-      referenceNo: parsed.referenceNo ?? null,
-      activityCategorySuggestion: parsed.activityCategorySuggestion ?? null,
-      activityDateTimeSuggestion: parsed.activityDateTimeSuggestion ?? null,
-      activityEndTimeSuggestion: parsed.activityEndTimeSuggestion ?? null,
-      targetDateSuggestion: parsed.targetDateSuggestion ?? null,
-      prioritySuggestion: parsed.prioritySuggestion ?? null,
-      rawText: parsed.rawText || content,
-    };
-
-    return result_data;
+    return parseGeminiResponse(result.response.text());
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : String(e);
-    // Detect quota exceeded and provide a more helpful message
     if (errMsg.includes("429") || errMsg.toLowerCase().includes("quota")) {
       throw new Error(
         `Gemini API quota exceeded. The free tier has a 20 requests/day limit. ` +
@@ -140,4 +86,127 @@ export async function extractFromImage(fileBuffer: Buffer, mimeType: string, fil
     }
     throw new Error(`AI extraction request failed: ${errMsg}`);
   }
+}
+
+/**
+ * Extract fields from MULTIPLE files in a single Gemini call.
+ * All images/PDFs are sent as inlineData parts so Gemini can read them all at once.
+ * This is more efficient than multiple separate calls and lets the model correlate
+ * information across pages of the same document.
+ *
+ * For text-based files (DOC, TXT, etc.), each file's text is included as a separate
+ * labeled section in the prompt.
+ */
+export async function extractFromMultipleFiles(
+  files: Array<{ buffer: Buffer; mimeType: string; fileName: string }>
+): Promise<ExtractedData> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY not set. Get a free key at https://aistudio.google.com/apikey");
+
+  if (files.length === 0) throw new Error("No files provided");
+  if (files.length === 1) return extractFromImage(files[0].buffer, files[0].mimeType, files[0].fileName);
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: { responseMimeType: "application/json" },
+    });
+    const prompt = await buildPrompt();
+
+    // Separate image/PDF files from text-based files
+    const imageParts: Array<{ inlineData: { mimeType: string; data: string } }> = [];
+    const textSections: string[] = [];
+
+    for (const f of files) {
+      const ext = f.fileName.split(".").pop()?.toLowerCase() || "";
+      const isImage = f.mimeType.startsWith("image/");
+      const isPdf = f.mimeType === "application/pdf" || ext === "pdf";
+      if (isImage || isPdf) {
+        imageParts.push({
+          inlineData: {
+            mimeType: isPdf ? "application/pdf" : f.mimeType,
+            data: f.buffer.toString("base64"),
+          },
+        });
+      } else {
+        try {
+          const text = f.buffer.toString("utf-8").slice(0, 8000);
+          textSections.push(`--- ${f.fileName} ---\n${text}\n--- end ${f.fileName} ---`);
+        } catch {}
+      }
+    }
+
+    // Build the request parts: prompt + all images + combined text
+    const parts: Array<string | { inlineData: { mimeType: string; data: string } }> = [prompt];
+    for (const img of imageParts) parts.push(img);
+    if (textSections.length > 0) {
+      parts.push(`\n\nAdditional text-based files:\n\n${textSections.join("\n\n")}`);
+    }
+
+    const result = await model.generateContent(parts);
+    return parseGeminiResponse(result.response.text());
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    if (errMsg.includes("429") || errMsg.toLowerCase().includes("quota")) {
+      throw new Error(
+        `Gemini API quota exceeded. To fix: update the GEMINI_API_KEY on Render with a Pro/paid key. ` +
+        `Original error: ${errMsg}`
+      );
+    }
+    throw new Error(`AI extraction request failed: ${errMsg}`);
+  }
+}
+
+/**
+ * Shared JSON parsing logic — handles markdown fences, regex extraction, and field normalization.
+ */
+function parseGeminiResponse(content: string): ExtractedData {
+  let parsed: ExtractedData | null = null;
+
+  // Attempt 1: Direct parse (responseMimeType should force pure JSON)
+  try {
+    parsed = JSON.parse(content) as ExtractedData;
+  } catch {
+    // Attempt 2: Strip markdown code fences
+    const stripped = content
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+    try {
+      parsed = JSON.parse(stripped) as ExtractedData;
+    } catch {
+      // Attempt 3: Extract first JSON object using regex
+      const match = content.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          parsed = JSON.parse(match[0]) as ExtractedData;
+        } catch {
+          // All parsing attempts failed
+        }
+      }
+    }
+  }
+
+  if (!parsed) {
+    console.error("[VLM] Failed to parse Gemini response as JSON. Raw content:", content.slice(0, 500));
+    return getEmptyResult(content);
+  }
+
+  // Normalize: ensure all fields exist (Gemini might omit null fields)
+  return {
+    documentType: parsed.documentType ?? null,
+    dateOfDocument: parsed.dateOfDocument ?? null,
+    fromOffice: parsed.fromOffice ?? null,
+    subject: parsed.subject ?? null,
+    referenceNo: parsed.referenceNo ?? null,
+    activityCategorySuggestion: parsed.activityCategorySuggestion ?? null,
+    activityDateTimeSuggestion: parsed.activityDateTimeSuggestion ?? null,
+    activityEndTimeSuggestion: parsed.activityEndTimeSuggestion ?? null,
+    targetDateSuggestion: parsed.targetDateSuggestion ?? null,
+    prioritySuggestion: parsed.prioritySuggestion ?? null,
+    rawText: parsed.rawText || content,
+  };
 }

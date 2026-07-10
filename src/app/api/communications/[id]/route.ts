@@ -130,10 +130,25 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const record = await db.communication.findUnique({ where: { id } });
   if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Delete uploaded file from database
+  // Delete uploaded file(s) from database (supports both single-path and JSON array formats)
   if (record.photoPath) {
-    const fileIdMatch = record.photoPath.match(/\/api\/files\/(.+)$/);
-    if (fileIdMatch) { try { await db.uploadedFile.delete({ where: { id: fileIdMatch[1] } }); } catch {} }
+    let paths: string[] = [];
+    // Try parsing as JSON array (new multi-file format)
+    if (record.photoPath.trim().startsWith("[")) {
+      try {
+        const arr = JSON.parse(record.photoPath);
+        if (Array.isArray(arr)) paths = arr.filter((x) => typeof x === "string");
+      } catch {}
+    }
+    // Legacy single-path format
+    if (paths.length === 0) paths = [record.photoPath];
+
+    for (const p of paths) {
+      const fileIdMatch = p.match(/\/api\/files\/(.+)$/);
+      if (fileIdMatch) {
+        try { await db.uploadedFile.delete({ where: { id: fileIdMatch[1] } }); } catch {}
+      }
+    }
   }
 
   // Delete calendar event

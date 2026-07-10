@@ -50,6 +50,8 @@ import {
   ExternalLink,
   Sparkles,
   RotateCw,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ColumnFilter } from "@/components/app/parts/column-filter";
@@ -102,6 +104,27 @@ const today = () => {
 const isImageFile = (path: string): boolean => {
   const ext = path.split(".").pop()?.toLowerCase() || "";
   return ["jpg", "jpeg", "png", "webp", "gif", "bmp"].includes(ext);
+};
+
+/**
+ * Parse the photoPath field which may be:
+ * - A JSON array string: '["/api/files/abc", "/api/files/xyz"]' (new multi-file format)
+ * - A single path string: "/api/files/abc" (legacy single-file format)
+ * - null/empty
+ *
+ * Returns an array of file paths.
+ */
+const parsePhotoPaths = (photoPath: string | null): string[] => {
+  if (!photoPath) return [];
+  // Try parsing as JSON array
+  if (photoPath.trim().startsWith("[")) {
+    try {
+      const arr = JSON.parse(photoPath);
+      if (Array.isArray(arr)) return arr.filter((x) => typeof x === "string" && x.length > 0);
+    } catch {}
+  }
+  // Legacy single-path format
+  return [photoPath];
 };
 
 const fmtDate = (s: string | null): string => {
@@ -656,33 +679,106 @@ export function RecordsView() {
 
       {/* Photo viewer */}
       {showPhoto && (
-        <Dialog open={true} onOpenChange={(o) => !o && setShowPhoto(null)}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>{showPhoto.controlNo}</DialogTitle>
-            </DialogHeader>
-            {showPhoto.photoPath ? (
-              isImageFile(showPhoto.photoPath) ? (
-                <img src={showPhoto.photoPath} alt={showPhoto.controlNo} className="w-full rounded-md" />
+        <PhotoViewerDialog record={showPhoto} onClose={() => setShowPhoto(null)} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Photo viewer dialog that supports both single-file (legacy) and multi-file (new) records.
+ * Parses the photoPath field and displays a carousel if multiple files are attached.
+ */
+function PhotoViewerDialog({ record, onClose }: { record: Record; onClose: () => void }) {
+  const paths = parsePhotoPaths(record.photoPath);
+  const [idx, setIdx] = useState(0);
+
+  // Clamp index if paths change
+  useEffect(() => {
+    if (idx >= paths.length) setIdx(0);
+  }, [paths.length, idx]);
+
+  const goPrev = () => setIdx((i) => (i === 0 ? paths.length - 1 : i - 1));
+  const goNext = () => setIdx((i) => (i === paths.length - 1 ? 0 : i + 1));
+
+  return (
+    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between">
+            <span>{record.controlNo}</span>
+            {paths.length > 1 && (
+              <span className="text-xs font-normal text-slate-500">
+                File {idx + 1} of {paths.length}
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+        {paths.length === 0 ? (
+          <div className="text-center py-8 text-slate-500">No file attached.</div>
+        ) : (
+          <>
+            <div className="relative">
+              {isImageFile(paths[idx]) ? (
+                <img src={paths[idx]} alt={`${record.controlNo} - page ${idx + 1}`} className="w-full rounded-md" />
               ) : (
                 <div className="flex flex-col items-center justify-center p-8 rounded-md border border-slate-200 bg-slate-50 text-center">
                   <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
                     <FileText className="w-8 h-8 text-emerald-600" />
                   </div>
-                  <div className="text-sm font-medium text-slate-900">{showPhoto.photoPath.split("/").pop()}</div>
-                  <div className="text-xs text-slate-500 mt-1">{showPhoto.photoPath.split(".").pop()?.toUpperCase()} file</div>
-                  <a href={showPhoto.photoPath} target="_blank" rel="noreferrer" className="mt-3 text-sm text-emerald-700 hover:underline flex items-center gap-1">
+                  <div className="text-sm font-medium text-slate-900">{paths[idx].split("/").pop()}</div>
+                  <div className="text-xs text-slate-500 mt-1">{paths[idx].split(".").pop()?.toUpperCase()} file</div>
+                  <a href={paths[idx]} target="_blank" rel="noreferrer" className="mt-3 text-sm text-emerald-700 hover:underline flex items-center gap-1">
                     <ExternalLink className="w-3 h-3" /> Open / Download file
                   </a>
                 </div>
-              )
-            ) : (
-              <div className="text-center py-8 text-slate-500">No file attached.</div>
+              )}
+              {/* Navigation arrows */}
+              {paths.length > 1 && (
+                <>
+                  <button
+                    onClick={goPrev}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 border border-slate-300 flex items-center justify-center hover:bg-white shadow-sm"
+                    aria-label="Previous file"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={goNext}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 border border-slate-300 flex items-center justify-center hover:bg-white shadow-sm"
+                    aria-label="Next file"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+            </div>
+            {/* Thumbnail strip */}
+            {paths.length > 1 && (
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {paths.map((p, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setIdx(i)}
+                    className={`flex-shrink-0 w-14 h-14 rounded-md border-2 overflow-hidden transition-all ${
+                      i === idx ? "border-emerald-500 ring-1 ring-emerald-500" : "border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    {isImageFile(p) ? (
+                      <img src={p} alt={`Page ${i + 1}`} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-100">
+                        <FileText className="w-4 h-4 text-slate-500" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
             )}
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
