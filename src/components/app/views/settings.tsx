@@ -463,10 +463,10 @@ export function SettingsView() {
             </div>
           ) : storageReport ? (
             <>
-              {/* Usage bar */}
+              {/* Usage bar — uses ACTUAL database size (matches Neon dashboard) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-700">Neon Free Tier Usage</span>
+                  <span className="font-medium text-slate-700">Neon Free Tier Usage (actual database size)</span>
                   <span className={parseFloat(storageReport.neonFreeTier.usagePercent) > 80 ? "text-red-600 font-semibold" : "text-slate-600"}>
                     {storageReport.neonFreeTier.usedMB} MB / {storageReport.neonFreeTier.limitMB} MB ({storageReport.neonFreeTier.usagePercent}%)
                   </span>
@@ -485,6 +485,25 @@ export function SettingsView() {
                 </div>
               </div>
 
+              {/* Storage breakdown — actual DB size vs file data vs overhead */}
+              <div className="rounded-md border border-slate-200 p-3 space-y-2">
+                <div className="text-xs font-medium text-slate-700 mb-1">Storage breakdown</div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-600">📁 Uploaded file data (images, PDFs, docs)</span>
+                    <span className="font-medium text-slate-900">{storageReport.database.fileDataMB} MB</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-600">⚙️ Database overhead (indexes, TOAST, system tables)</span>
+                    <span className="font-medium text-slate-900">{storageReport.database.overheadMB} MB ({storageReport.database.overheadPercent}%)</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200">
+                    <span className="font-medium text-slate-700">Total database size (matches Neon dashboard)</span>
+                    <span className="font-bold text-slate-900">{storageReport.database.actualSizeMB} MB</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Stats grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="rounded-md border border-slate-200 p-3 text-center">
@@ -499,8 +518,8 @@ export function SettingsView() {
                 </div>
                 <div className="rounded-md border border-slate-200 p-3 text-center">
                   <HardDrive className="w-5 h-5 text-amber-600 mx-auto mb-1" />
-                  <div className="text-lg font-bold text-slate-900">{storageReport.files.totalSizeMB}</div>
-                  <div className="text-xs text-slate-500">MB used</div>
+                  <div className="text-lg font-bold text-slate-900">{storageReport.database.actualSizeMB}</div>
+                  <div className="text-xs text-slate-500">MB total</div>
                 </div>
                 <div className="rounded-md border border-slate-200 p-3 text-center">
                   <Users className="w-5 h-5 text-purple-600 mx-auto mb-1" />
@@ -509,10 +528,27 @@ export function SettingsView() {
                 </div>
               </div>
 
-              {/* By category */}
+              {/* Per-table sizes */}
+              {storageReport.tableSizes && storageReport.tableSizes.length > 0 && (
+                <details>
+                  <summary className="cursor-pointer text-xs font-medium text-slate-700 hover:text-slate-900">
+                    View storage by database table
+                  </summary>
+                  <div className="mt-2 space-y-1">
+                    {storageReport.tableSizes.map((t: any) => (
+                      <div key={t.tableName} className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
+                        <span className="text-slate-600 font-mono">{t.tableName} <span className="text-slate-400">({t.rowCount} rows)</span></span>
+                        <span className="font-medium text-slate-900">{t.totalSizeMB} MB</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {/* By file category */}
               {storageReport.byCategory.length > 0 && (
                 <div className="rounded-md border border-slate-200 p-3">
-                  <div className="text-xs font-medium text-slate-700 mb-2">Storage by file type</div>
+                  <div className="text-xs font-medium text-slate-700 mb-2">File data by type</div>
                   <div className="space-y-1">
                     {storageReport.byCategory.map((cat: any) => (
                       <div key={cat.category} className="flex items-center justify-between text-xs">

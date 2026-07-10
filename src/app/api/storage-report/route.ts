@@ -8,12 +8,11 @@ export const runtime = "nodejs";
  * GET /api/storage-report
  * Admin-only. Returns a summary of database storage usage.
  *
- * Returns:
- * - Total file count and total size
- * - Breakdown by MIME type (images vs PDFs vs docs)
- * - Top 10 largest files
- * - Communication record count
- * - Estimated storage usage vs Neon free tier limit (512 MB)
+ * Queries PostgreSQL directly for the ACTUAL database size (matches Neon dashboard),
+ * plus a per-table breakdown so the user can see which tables consume the most space.
+ *
+ * Also returns file-level stats (count, sizes, top largest) for identifying
+ * individual large files that could be compressed or deleted.
  */
 export async function GET() {
   try {
@@ -21,6 +20,34 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+    // === Query PostgreSQL for ACTUAL database size (matches Neon dashboard) ===
+    // pg_database_size() returns the total size of the current database in bytes,
+    // including: table data, indexes, TOAST tables, system catalogs, etc.
+    const dbSizeResult = await db.$queryRaw<[{ db_size: bigint }]>`
+      SELECT pg_database_size(current_database()) AS db_size
+    `;
+    const actualDbSizeBytes = Number(dbSizeResult[0].db_size);
+    const actualDbSizeMB = actualDbSizeBytes / (1024 * 1024);
+
+    // === Per-table size breakdown (data + indexes + TOAST) ===
+    // pg_total_relation_size() includes: heap (table data) + indexes + TOAST table
+    const tableSizesResult = await db.$queryRaw<Array<{ table_name: string; total_size: bigint; row_count: bigint }>>`
+      SELECT
+        relname AS table_name,
+        pg_total_relation_size(relid) AS total_size,
+        n_live_tup AS row_count
+      FROM pg_stat_user_tables
+      ORDER BY pg_total_relation_size(relid) DESC
+    `;
+
+    const tableSizes = tableSizesResult.map((row) => ({
+      tableName: row.table_name,
+      totalSizeMB: (Number(row.total_size) / (1024 * 1024)).toFixed(2),
+      totalSizeBytes: Number(row.total_size),
+      rowCount: Number(row.row_count),
+    }));
+
+    // === File-level stats (for identifying large files to compress/delete) ===
     const files = await db.uploadedFile.findMany({
       select: { id: true, filename: true, mimeType: true, size: true, createdAt: true },
       orderBy: { size: "desc" },
@@ -29,10 +56,10 @@ export async function GET() {
     const commCount = await db.communication.count();
     const userCount = await db.user.count();
 
-    const totalSizeBytes = files.reduce((sum, f) => sum + f.size, 0);
-    const totalSizeMB = totalSizeBytes / (1024 * 1024);
+    const fileTotalSizeBytes = files.reduce((sum, f) => sum + f.size, 0);
+    const fileTotalSizeMB = fileTotalSizeBytes / (1024 * 1024);
 
-    // Breakdown by category
+    // Breakdown by file category
     const byCategory: Record<string, { count: number; sizeBytes: number }> = {};
     for (const f of files) {
       const ext = f.filename.split(".").pop()?.toLowerCase() || "unknown";
@@ -64,13 +91,29 @@ export async function GET() {
 
     // Neon free tier limit
     const NEON_FREE_LIMIT_MB = 512;
-    const usagePercent = (totalSizeMB / NEON_FREE_LIMIT_MB) * 100;
+    const usagePercent = (actualDbSizeMB / NEON_FREE_LIMIT_MB) * 100;
+    const overheadBytes = actualDbSizeBytes - fileTotalSizeBytes;
+    const overheadMB = overheadBytes / (1024 * 1024);
+    const overheadPercent = actualDbSizeBytes > 0 ? (overheadBytes / actualDbSizeBytes) * 100 : 0;
 
     return NextResponse.json({
+      // === Actual database size (matches Neon dashboard) ===
+      database: {
+        actualSizeMB: actualDbSizeMB.toFixed(2),
+        actualSizeBytes,
+        fileDataMB: fileTotalSizeMB.toFixed(2),
+        fileDataBytes: fileTotalSizeBytes,
+        overheadMB: overheadMB.toFixed(2),
+        overheadBytes,
+        overheadPercent: overheadPercent.toFixed(1),
+      },
+      // === Per-table breakdown ===
+      tableSizes,
+      // === File-level stats ===
       files: {
         count: files.length,
-        totalSizeMB: totalSizeMB.toFixed(2),
-        totalSizeBytes,
+        totalSizeMB: fileTotalSizeMB.toFixed(2),
+        totalSizeBytes: fileTotalSizeBytes,
       },
       records: {
         communications: commCount,
@@ -82,10 +125,11 @@ export async function GET() {
         sizeMB: (data.sizeBytes / (1024 * 1024)).toFixed(2),
       })),
       topLargest,
+      // === Neon free tier usage (based on ACTUAL db size, not just file sizes) ===
       neonFreeTier: {
         limitMB: NEON_FREE_LIMIT_MB,
-        usedMB: totalSizeMB.toFixed(2),
-        remainingMB: (NEON_FREE_LIMIT_MB - totalSizeMB).toFixed(2),
+        usedMB: actualDbSizeMB.toFixed(2),
+        remainingMB: (NEON_FREE_LIMIT_MB - actualDbSizeMB).toFixed(2),
         usagePercent: usagePercent.toFixed(1),
       },
     });
