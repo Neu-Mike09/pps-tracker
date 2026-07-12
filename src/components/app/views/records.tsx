@@ -415,36 +415,75 @@ export function RecordsView() {
 
           {/* Collapsible filter panel */}
           {showFilters && (
-            <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
-              {/* Row 1: Status, Assigned To, Category */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
-                  <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    {dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v === "all" ? "" : v)}>
-                  <SelectTrigger><SelectValue placeholder="Assigned To" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All staff</SelectItem>
-                    {dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}>
-                  <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All categories</SelectItem>
-                    {dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+            <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
+
+              {/* Section 1: Quick Filters — Status, Assigned To, Category */}
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Quick Filters</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
+                    <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All statuses</SelectItem>
+                      {dropdownOptions.status.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v === "all" ? "" : v)}>
+                    <SelectTrigger><SelectValue placeholder="Assigned To" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All staff</SelectItem>
+                      {dropdownOptions.assignedTo.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}>
+                    <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All categories</SelectItem>
+                      {dropdownOptions.activityCategory.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Row 2: Sort by + direction + overdue + refresh + clear */}
-              <div className="flex flex-wrap items-center gap-2">
+              {/* Section 2: Date Range Filters — in a bordered grid for clear grouping */}
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Date Range</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {/* Received date range */}
+                  <div className="rounded-md border border-slate-200 bg-slate-50/50 p-2">
+                    <div className="text-[11px] font-medium text-slate-600 mb-1">Date Received</div>
+                    <div className="flex items-center gap-1">
+                      <Input type="date" value={dateRecvFrom} onChange={(e) => setDateRecvFrom(e.target.value)} className="h-7 text-xs flex-1" />
+                      <span className="text-[10px] text-slate-400">→</span>
+                      <Input type="date" value={dateRecvTo} onChange={(e) => setDateRecvTo(e.target.value)} className="h-7 text-xs flex-1" />
+                    </div>
+                  </div>
+                  {/* Deadline date range */}
+                  <div className="rounded-md border border-slate-200 bg-slate-50/50 p-2">
+                    <div className="text-[11px] font-medium text-slate-600 mb-1">Deadline</div>
+                    <div className="flex items-center gap-1">
+                      <Input type="date" value={deadlineFrom} onChange={(e) => setDeadlineFrom(e.target.value)} className="h-7 text-xs flex-1" />
+                      <span className="text-[10px] text-slate-400">→</span>
+                      <Input type="date" value={deadlineTo} onChange={(e) => setDeadlineTo(e.target.value)} className="h-7 text-xs flex-1" />
+                    </div>
+                  </div>
+                  {/* Activity date range */}
+                  <div className="rounded-md border border-slate-200 bg-slate-50/50 p-2">
+                    <div className="text-[11px] font-medium text-slate-600 mb-1">Activity Date</div>
+                    <div className="flex items-center gap-1">
+                      <Input type="date" value={activityFrom} onChange={(e) => setActivityFrom(e.target.value)} className="h-7 text-xs flex-1" />
+                      <span className="text-[10px] text-slate-400">→</span>
+                      <Input type="date" value={activityTo} onChange={(e) => setActivityTo(e.target.value)} className="h-7 text-xs flex-1" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Sort & Actions — clearly separated */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                {/* Sort controls (left side) */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Sort by:</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Sort</span>
                   <Select value={sortField} onValueChange={setSortField}>
                     <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -466,59 +505,40 @@ export function RecordsView() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button
-                  variant={overdueOnly ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setOverdueOnly((v) => !v)}
-                  className={overdueOnly ? "bg-red-600 hover:bg-red-700" : ""}
-                >
-                  <AlertTriangle className="w-3 h-3 mr-1" />
-                  {overdueOnly ? "Overdue only" : "Show overdue"}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={loadRecords}>
-                  <RefreshCw className="w-3 h-3 mr-1" /> Refresh
-                </Button>
-                {(search || statusFilter || assignedFilter || categoryFilter || overdueOnly || dateRecvFrom || dateRecvTo || deadlineFrom || deadlineTo || activityFrom || activityTo || filterFromOffice.length > 0 || filterControlNo.length > 0) && (
+                {/* Action buttons (right side) */}
+                <div className="flex items-center gap-2">
                   <Button
-                    variant="ghost"
+                    variant={overdueOnly ? "default" : "outline"}
                     size="sm"
-                    onClick={() => {
-                      setSearch("");
-                      setSearchInput("");
-                      setStatusFilter("");
-                      setAssignedFilter("");
-                      setCategoryFilter("");
-                      setOverdueOnly(false);
-                      setDateRecvFrom(""); setDateRecvTo("");
-                      setDeadlineFrom(""); setDeadlineTo("");
-                      setActivityFrom(""); setActivityTo("");
-                      setFilterFromOffice([]); setFilterControlNo([]);
-                    }}
+                    onClick={() => setOverdueOnly((v) => !v)}
+                    className={overdueOnly ? "bg-red-600 hover:bg-red-700" : ""}
                   >
-                    <X className="w-3 h-3 mr-1" /> Clear
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    {overdueOnly ? "Overdue only" : "Show overdue"}
                   </Button>
-                )}
-              </div>
-
-              {/* Row 3: Date range filters */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-500">Recv:</span>
-                  <Input type="date" value={dateRecvFrom} onChange={(e) => setDateRecvFrom(e.target.value)} className="h-7 w-32 text-xs" />
-                  <span className="text-[10px] text-slate-400">to</span>
-                  <Input type="date" value={dateRecvTo} onChange={(e) => setDateRecvTo(e.target.value)} className="h-7 w-32 text-xs" />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-500">Deadline:</span>
-                  <Input type="date" value={deadlineFrom} onChange={(e) => setDeadlineFrom(e.target.value)} className="h-7 w-32 text-xs" />
-                  <span className="text-[10px] text-slate-400">to</span>
-                  <Input type="date" value={deadlineTo} onChange={(e) => setDeadlineTo(e.target.value)} className="h-7 w-32 text-xs" />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-500">Activity:</span>
-                  <Input type="date" value={activityFrom} onChange={(e) => setActivityFrom(e.target.value)} className="h-7 w-32 text-xs" />
-                  <span className="text-[10px] text-slate-400">to</span>
-                  <Input type="date" value={activityTo} onChange={(e) => setActivityTo(e.target.value)} className="h-7 w-32 text-xs" />
+                  <Button variant="ghost" size="sm" onClick={loadRecords}>
+                    <RefreshCw className="w-3 h-3 mr-1" /> Refresh
+                  </Button>
+                  {(search || statusFilter || assignedFilter || categoryFilter || overdueOnly || dateRecvFrom || dateRecvTo || deadlineFrom || deadlineTo || activityFrom || activityTo || filterFromOffice.length > 0 || filterControlNo.length > 0) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSearch("");
+                        setSearchInput("");
+                        setStatusFilter("");
+                        setAssignedFilter("");
+                        setCategoryFilter("");
+                        setOverdueOnly(false);
+                        setDateRecvFrom(""); setDateRecvTo("");
+                        setDeadlineFrom(""); setDeadlineTo("");
+                        setActivityFrom(""); setActivityTo("");
+                        setFilterFromOffice([]); setFilterControlNo([]);
+                      }}
+                    >
+                      <X className="w-3 h-3 mr-1" /> Clear
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
