@@ -105,8 +105,8 @@ export function LoginScreen() {
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <div className="relative">
-                <div className="w-20 h-20 rounded-2xl bg-white/95 border border-emerald-300/30 flex items-center justify-center shadow-lg overflow-hidden">
-                  <img src="/pps-logo.png" alt="PPS Logo" className="w-16 h-16 object-contain" />
+                <div className="w-20 h-20 rounded-2xl bg-emerald-500/30 border border-emerald-300/30 flex items-center justify-center shadow-lg">
+                  <Sprout className="w-10 h-10 text-emerald-100" />
                 </div>
                 <div className="absolute inset-0 rounded-2xl border-2 border-emerald-300/40" style={{ animation: "pulse 2s ease-in-out infinite" }} />
               </div>

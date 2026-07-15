@@ -18,10 +18,6 @@ export const metadata: Metadata = {
   description: "Digital tracker for incoming communications of the Planning and Programming Section, PMED, DA RFO 5.",
   keywords: ["DA RFO 5", "PPS", "PMED", "communications", "tracker", "agriculture", "Philippines"],
   authors: [{ name: "DA RFO 5 - PMED - PPS" }],
-  icons: {
-    icon: "/icon.png",
-    apple: "/apple-icon.png",
-  },
 };
 
 export default function RootLayout({
