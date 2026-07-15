@@ -79,9 +79,7 @@ export function AppShell() {
         {/* Logo */}
         <div className="p-4 border-b border-[#2d5a3e]">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-400/20 flex items-center justify-center">
-              <Sprout className="w-5 h-5 text-emerald-300" />
-            </div>
+            <img src="/pps-logo.png" alt="PPS Logo" className="w-9 h-9 rounded-lg object-contain bg-white/90 p-0.5" />
             <div>
               <div className="text-sm font-bold text-[#d4c9a8] leading-tight">DA RFO 5</div>
               <div className="text-[10px] text-[#8fae7a] leading-tight">PPS Tracker</div>
