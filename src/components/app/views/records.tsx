@@ -921,10 +921,21 @@ function EditRecordDialog({
 }) {
   const [form, setForm] = useState<Record>(record);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const update = (k: keyof Record, v: string | null) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Wrapper around onSave that tracks the saving state for the loading spinner
+  const handleSaveClick = async () => {
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Auto-generate summary when dialog opens (if document exists)
   useEffect(() => {
@@ -1200,9 +1211,11 @@ function EditRecordDialog({
               </AlertDialog>
             )}
             <div className="flex gap-2 ml-auto">
-              <Button variant="outline" onClick={onClose}>Cancel</Button>
-              <Button onClick={() => onSave(form)} className="bg-emerald-600 hover:bg-emerald-700">
-                <Save className="w-4 h-4 mr-1" /> Save Changes
+              <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+              <Button onClick={handleSaveClick} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                {saving
+                  ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving…</>
+                  : <><Save className="w-4 h-4 mr-1" /> Save Changes</>}
               </Button>
             </div>
           </div>
