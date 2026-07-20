@@ -6,6 +6,27 @@ async function getGoogle() {
   if (!gLoaded) { const mod = await import("googleapis"); gLoaded = mod.google || mod.default || mod; }
   return gLoaded;
 }
+import { ACTIVITY_CATEGORY_COLORS } from "./constants";
+
+/**
+ * Background + text hex colors for each activity category in Google Sheets.
+ * These match the Tailwind badge colors used in the app UI (bg-X-100 / text-X-800).
+ * Used by applyCategoryColorToCell() to color column Q (Activity Category).
+ *
+ * Google Sheets requires hex colors in the format "RRRRGGGGBBBB" (8 hex digits per channel)
+ * but we use the standard "#RRGGBB" format and convert if needed.
+ */
+const CATEGORY_SHEET_COLORS: Record<string, { bg: string; fg: string }> = {
+  "Coordination":     { bg: "#DBEAFE", fg: "#1E40AF" }, // blue-100 / blue-800
+  "Reporting":        { bg: "#E0E7FF", fg: "#3730A3" }, // indigo-100 / indigo-800
+  "Planning":         { bg: "#F3E8FF", fg: "#6B21A8" }, // purple-100 / purple-800
+  "Monitoring":       { bg: "#CFFAFE", fg: "#155E75" }, // cyan-100 / cyan-800
+  "Evaluation":       { bg: "#FFEDD5", fg: "#9A3412" }, // orange-100 / orange-800
+  "Training/Seminar": { bg: "#DCFCE7", fg: "#166534" }, // green-100 / green-800
+  "Meeting":          { bg: "#FEF9C3", fg: "#854D0E" }, // yellow-100 / yellow-800
+  "Field Activity":   { bg: "#FEE2E2", fg: "#991B1B" }, // red-100 / red-800
+  "Others":           { bg: "#F3F4F6", fg: "#1F2937" }, // gray-100 / gray-800
+};
 
 /**
  * Get Google Sheets config from Settings table.
@@ -141,6 +162,82 @@ export async function ensureSheetHeaders() {
 }
 
 /**
+ * Apply the category color (background + text) to column Q (Activity Category) of a specific row.
+ * Called after appendCommunicationRow / updateCommunicationRow writes the values.
+ *
+ * Uses the Google Sheets batchUpdate API with a repeatCell request, which is the only way
+ * to apply cell formatting (background color, text color, bold) via the API.
+ *
+ * If the category is empty or not in our color map, the cell formatting is cleared (white bg).
+ */
+async function applyCategoryColorToCell(
+  sheets: any,
+  spreadsheetId: string,
+  sheetName: string,
+  rowNumber: number,
+  category: string | null
+) {
+  const colors = category ? CATEGORY_SHEET_COLORS[category] : null;
+
+  // Convert "#RRGGBB" to { red, green, blue } floats (0-1) for the Google Sheets API
+  const hexToRgb = (hex: string) => {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    return { red: r, green: g, blue: b };
+  };
+
+  const backgroundColor = colors ? hexToRgb(colors.bg) : { red: 1, green: 1, blue: 1 }; // white if no category
+  const textColor = colors ? hexToRgb(colors.fg) : { red: 0, green: 0, blue: 0 }; // black if no category
+
+  try {
+    // Look up the numeric sheetId for the target sheet (batchUpdate requires it for repeatCell ranges)
+    const meta = await sheets.spreadsheets.get({ spreadsheetId });
+    const sheet = meta.data.sheets?.find(
+      (s: any) => s.properties?.title === sheetName
+    );
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined) {
+      console.warn(`[sheets] Could not find sheetId for sheet "${sheetName}" — skipping color formatting`);
+      return;
+    }
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            repeatCell: {
+              range: {
+                sheetId,
+                startRowIndex: rowNumber - 1, // 0-indexed; rowNumber is 1-indexed (e.g., row 5 → index 4)
+                endRowIndex: rowNumber,
+                startColumnIndex: 16, // column Q = 0-indexed 16
+                endColumnIndex: 17,
+              },
+              cell: {
+                userEnteredFormat: {
+                  backgroundColor,
+                  textFormat: {
+                    bold: true,
+                    foregroundColor: textColor,
+                  },
+                  horizontalAlignment: "LEFT",
+                },
+              },
+              fields: "userEnteredFormat(backgroundColor,textFormat(foregroundColor,bold),horizontalAlignment)",
+            },
+          },
+        ],
+      },
+    });
+  } catch (e) {
+    // Non-fatal: the values were already written; color is just a nice-to-have
+    console.warn("[sheets] Failed to apply category color to cell:", e instanceof Error ? e.message : String(e));
+  }
+}
+
+/**
  * Append a single communication record as a new row in the Google Sheet.
  * Returns true on success, throws on failure.
  */
@@ -173,6 +270,9 @@ export async function appendCommunicationRow(communicationId: string) {
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
+
+  // Apply category color to column Q (Activity Category)
+  await applyCategoryColorToCell(sheets, config.spreadsheetId, config.sheetName, nextRow, comm.activityCategory);
 
   return true;
 }
@@ -228,6 +328,8 @@ export async function updateCommunicationRow(communicationId: string) {
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [row] },
     });
+    // Apply category color to column Q (Activity Category)
+    await applyCategoryColorToCell(sheets, config.spreadsheetId, config.sheetName, nextRow, comm.activityCategory);
     return { action: "appended" as const, rowNumber: nextRow };
   }
 
@@ -238,6 +340,9 @@ export async function updateCommunicationRow(communicationId: string) {
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
+
+  // Apply category color to column Q (Activity Category)
+  await applyCategoryColorToCell(sheets, config.spreadsheetId, config.sheetName, targetRowNumber, comm.activityCategory);
 
   return { action: "updated" as const, rowNumber: targetRowNumber };
 }
