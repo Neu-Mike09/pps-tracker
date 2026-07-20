@@ -60,6 +60,7 @@ import { ColumnFilter } from "@/components/app/parts/column-filter";
 import {
   STATUS_COLORS,
   PRIORITY_COLORS,
+  ACTIVITY_CATEGORY_COLORS,
   DOCUMENT_TYPES,
   PRIORITIES,
   TERMINAL_STATUSES,
@@ -633,11 +634,18 @@ export function RecordsView() {
                             )}
                           </td>
                           <td className="p-3">
-                            {r.status && (
-                              <Badge variant="outline" className={STATUS_COLORS[r.status] || ""}>
-                                {r.status}
-                              </Badge>
-                            )}
+                            <div className="flex flex-wrap gap-1">
+                              {r.activityCategory && (
+                                <Badge variant="outline" className={`text-[10px] ${ACTIVITY_CATEGORY_COLORS[r.activityCategory] || ""}`}>
+                                  {r.activityCategory}
+                                </Badge>
+                              )}
+                              {r.status && (
+                                <Badge variant="outline" className={STATUS_COLORS[r.status] || ""}>
+                                  {r.status}
+                                </Badge>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3">
                             <SyncBadge record={r} onRetry={() => handleRetrySync(r)} />
@@ -692,6 +700,14 @@ export function RecordsView() {
                         </Badge>
                       )}
                     </div>
+                    {/* Activity category badge (mobile) */}
+                    {r.activityCategory && (
+                      <div className="mt-1.5">
+                        <Badge variant="outline" className={`text-[10px] ${ACTIVITY_CATEGORY_COLORS[r.activityCategory] || ""}`}>
+                          {r.activityCategory}
+                        </Badge>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
                       <div>
                         Recv: {fmtDate(r.dateReceived)}{r.timeReceived ? ` ${r.timeReceived}` : ""}

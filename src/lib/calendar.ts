@@ -7,6 +7,7 @@ async function getGoogleapis() {
   return gLoaded;
 }
 import { getSheetsConfig, getCalendarId } from "./sheets";
+import { ACTIVITY_CATEGORY_GC_COLOR_ID } from "./constants";
 
 /**
  * Get an authenticated Google Calendar client using the same Service Account
@@ -179,16 +180,21 @@ function buildEvent(comm: CommunicationForCalendar, type: EventType) {
   const title = `${typeLabel}: ${comm.controlNo} — ${comm.subject || "(no subject)"}`;
 
   // Color coding
-  // - Deadline events: red/orange (colorId 11 = red) so they stand out
-  // - Activity events: based on status/priority
+  // - Deadline events: always red (colorId 11 = Tomato) so they stand out
+  // - Activity events: color based on the activity category (matches the app's badge colors)
+  //   Falls back to status-based colors only if no category is set.
   let colorId: string | undefined;
   if (type === "deadline") {
-    colorId = "11"; // red — deadlines stand out
+    colorId = "11"; // Tomato red — deadlines always stand out
+  } else if (comm.activityCategory && ACTIVITY_CATEGORY_GC_COLOR_ID[comm.activityCategory]) {
+    // Use the category's Google Calendar color (matches the app's badge color)
+    colorId = ACTIVITY_CATEGORY_GC_COLOR_ID[comm.activityCategory];
   } else {
-    if (comm.status === "Accomplished" || comm.status === "Attended") colorId = "2"; // green
-    else if (comm.status === "Cancelled") colorId = "4"; // red
-    else if (comm.status === "Pending" || comm.status === "In Progress" || comm.status === "For Compliance") colorId = "5"; // yellow
-    else if (comm.priority === "Urgent") colorId = "11"; // red
+    // Fallback: status/priority-based colors (only when no category is set)
+    if (comm.status === "Accomplished" || comm.status === "Attended") colorId = "2"; // Sage green
+    else if (comm.status === "Cancelled") colorId = "4"; // Flamingo
+    else if (comm.status === "Pending" || comm.status === "In Progress" || comm.status === "For Compliance") colorId = "5"; // Banana yellow
+    else if (comm.priority === "Urgent") colorId = "11"; // Tomato red
   }
 
   return {

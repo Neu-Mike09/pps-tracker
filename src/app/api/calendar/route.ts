@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
     assignedTo: string | null;
     status: string | null;
     priority: string | null;
+    activityCategory: string | null;
     dateType: "target" | "activity";
     date: string;
   }>> = {};
@@ -69,6 +70,7 @@ export async function GET(req: NextRequest) {
         assignedTo: r.assignedTo,
         status: r.status,
         priority: r.priority,
+        activityCategory: r.activityCategory,
         dateType: type,
         date: d.toISOString(),
       });

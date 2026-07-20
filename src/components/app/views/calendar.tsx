@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, AlertTriangle } from "lucide-react";
-import { STATUS_COLORS, PRIORITY_COLORS, TERMINAL_STATUSES } from "@/lib/constants";
+import { STATUS_COLORS, PRIORITY_COLORS, TERMINAL_STATUSES, ACTIVITY_CATEGORY_COLORS } from "@/lib/constants";
 
 interface CalEvent {
   id: string;
@@ -15,6 +15,7 @@ interface CalEvent {
   assignedTo: string | null;
   status: string | null;
   priority: string | null;
+  activityCategory: string | null;
   dateType: "target" | "activity";
   date: string;
 }
@@ -213,6 +214,10 @@ export function CalendarView() {
                           const isOverdue =
                             new Date(e.date) < new Date(todayStr) &&
                             !TERMINAL_STATUSES.includes(e.status || "");
+                          // Color activity events by their category; deadline/target events use slate
+                          const catColor = e.dateType === "activity" && e.activityCategory
+                            ? ACTIVITY_CATEGORY_COLORS[e.activityCategory]
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200";
                           return (
                             <button
                               key={`${e.id}-${i}`}
@@ -223,11 +228,9 @@ export function CalendarView() {
                               className={`block w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded truncate transition-colors ${
                                 isOverdue
                                   ? "bg-red-100 text-red-800 hover:bg-red-200"
-                                  : e.dateType === "activity"
-                                  ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
-                                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                  : catColor
                               }`}
-                              title={`${e.controlNo}: ${e.subject || "(no subject)"}`}
+                              title={`${e.controlNo}: ${e.subject || "(no subject)"}${e.activityCategory ? ` [${e.activityCategory}]` : ""}`}
                             >
                               <span className="font-mono">{e.controlNo}</span>
                             </button>
@@ -255,23 +258,34 @@ export function CalendarView() {
             <CalIcon className="w-4 h-4 text-emerald-600" /> Legend
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3 text-xs">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 bg-amber-100 border border-amber-300 rounded" />
-              <span>Activity date (meeting/event)</span>
+        <CardContent className="space-y-3">
+          {/* Category colors (for activity events) */}
+          <div>
+            <div className="text-xs font-semibold text-slate-700 mb-2">Activity Categories</div>
+            <div className="flex flex-wrap gap-3 text-xs">
+              {Object.entries(ACTIVITY_CATEGORY_COLORS).map(([cat, color]) => (
+                <div key={cat} className="flex items-center gap-1.5">
+                  <div className={`w-3 h-3 border rounded ${color.split(" ").filter(c => c.startsWith("bg-")).join(" ")}`} />
+                  <span>{cat}</span>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 bg-slate-100 border border-slate-300 rounded" />
-              <span>Target date (deadline)</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 bg-red-100 border border-red-300 rounded" />
-              <span>Overdue (past, not completed)</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 bg-emerald-50 border border-emerald-300 rounded" />
-              <span>Today</span>
+          </div>
+          {/* Other indicators */}
+          <div className="pt-2 border-t border-slate-100">
+            <div className="flex flex-wrap gap-3 text-xs">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-slate-100 border border-slate-300 rounded" />
+                <span>Deadline / Target date</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-red-100 border border-red-300 rounded" />
+                <span>Overdue (past, not completed)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-emerald-50 border border-emerald-300 rounded" />
+                <span>Today</span>
+              </div>
             </div>
           </div>
         </CardContent>
