@@ -233,6 +233,18 @@ export function RecordsView() {
      
   }, [search, statusFilter, assignedFilter, categoryFilter, overdueOnly, sortField, sortDir, dateRecvFrom, dateRecvTo, deadlineFrom, deadlineTo, activityFrom, activityTo, filterFromOffice, filterSubject, filterControlNo]);
 
+  // Debounced incremental search: commit searchInput → search after 300ms of no typing.
+  // This enables live search-as-you-type. Clicking "Search" button or pressing Enter
+  // commits immediately (bypasses this debounce) by calling setSearch(searchInput) directly.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      // Only commit if the input differs from the already-committed search value
+      // (avoids redundant fetches when the user clicks Search on the same value)
+      setSearch((prev) => (prev === searchInput ? prev : searchInput));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   // Auto-open edit dialog if editId is set (from dashboard click)
   useEffect(() => {
     if (editId) {
