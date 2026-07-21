@@ -620,11 +620,11 @@ export function RecordsView() {
                           </td>
                           <td className="p-3 text-xs">{r.assignedTo || "-"}</td>
                           <td className={`p-3 text-xs ${isOverdue ? "text-red-600 font-semibold" : ""}`}>
-                            {fmtDate(r.targetDate)}
+                            {fmtDate(r.targetDate) || "-"}
                             {isOverdue && <div className="text-[10px] text-red-500">OVERDUE</div>}
                           </td>
                           <td className="p-3 text-xs">
-                            {fmtDate(r.activityDateTime)}
+                            {fmtDate(r.activityDateTime) || "-"}
                             {r.activityDateTime && r.activityDateTimeHasTime && (
                               <div className="text-[10px] text-slate-500">
                                 {new Date(r.activityDateTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
@@ -636,17 +636,21 @@ export function RecordsView() {
                             )}
                           </td>
                           <td className="p-3">
-                            {r.activityCategory && (
+                            {r.activityCategory ? (
                               <Badge variant="outline" className={`text-[10px] ${ACTIVITY_CATEGORY_COLORS[r.activityCategory] || ""}`}>
                                 {r.activityCategory}
                               </Badge>
+                            ) : (
+                              <span className="text-slate-400 text-xs">-</span>
                             )}
                           </td>
                           <td className="p-3">
-                            {r.status && (
+                            {r.status ? (
                               <Badge variant="outline" className={STATUS_COLORS[r.status] || ""}>
                                 {r.status}
                               </Badge>
+                            ) : (
+                              <span className="text-slate-400 text-xs">-</span>
                             )}
                           </td>
                           <td className="p-3">
