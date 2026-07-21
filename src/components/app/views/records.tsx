@@ -495,6 +495,7 @@ export function RecordsView() {
                       <SelectItem value="assignedTo">Assigned</SelectItem>
                       <SelectItem value="deadline">Deadline</SelectItem>
                       <SelectItem value="activityDate">Activity Date</SelectItem>
+                      <SelectItem value="category">Category</SelectItem>
                       <SelectItem value="status">Status</SelectItem>
                     </SelectContent>
                   </Select>
@@ -574,6 +575,7 @@ export function RecordsView() {
                       <th className="p-3 font-medium"><ColumnFilter label="Assigned" values={dropdownOptions.assignedTo} selected={assignedFilter ? [assignedFilter] : []} onChange={(v) => setAssignedFilter(v.length === 1 ? v[0] : "")} onSortAsc={() => handleSort("assignedTo", "asc")} onSortDesc={() => handleSort("assignedTo", "desc")} active={!!assignedFilter} /></th>
                       <th className="p-3 font-medium"><ColumnFilter label="Deadline" values={[]} selected={[]} onChange={() => {}} onSortAsc={() => handleSort("deadline", "asc")} onSortDesc={() => handleSort("deadline", "desc")} active={false} /></th>
                       <th className="p-3 font-medium"><ColumnFilter label="Activity Date" values={[]} selected={[]} onChange={() => {}} onSortAsc={() => handleSort("activityDate", "asc")} onSortDesc={() => handleSort("activityDate", "desc")} active={false} /></th>
+                      <th className="p-3 font-medium"><ColumnFilter label="Category" values={dropdownOptions.activityCategory} selected={categoryFilter ? [categoryFilter] : []} onChange={(v) => setCategoryFilter(v.length === 1 ? v[0] : "")} onSortAsc={() => handleSort("category", "asc")} onSortDesc={() => handleSort("category", "desc")} active={!!categoryFilter} /></th>
                       <th className="p-3 font-medium"><ColumnFilter label="Status" values={dropdownOptions.status} selected={statusFilter ? [statusFilter] : []} onChange={(v) => setStatusFilter(v.length === 1 ? v[0] : "")} onSortAsc={() => handleSort("status", "asc")} onSortDesc={() => handleSort("status", "desc")} active={!!statusFilter} /></th>
                       <th className="p-3 font-medium">Sync</th>
                       <th className="p-3 font-medium"></th>
@@ -634,18 +636,18 @@ export function RecordsView() {
                             )}
                           </td>
                           <td className="p-3">
-                            <div className="flex flex-wrap gap-1">
-                              {r.activityCategory && (
-                                <Badge variant="outline" className={`text-[10px] ${ACTIVITY_CATEGORY_COLORS[r.activityCategory] || ""}`}>
-                                  {r.activityCategory}
-                                </Badge>
-                              )}
-                              {r.status && (
-                                <Badge variant="outline" className={STATUS_COLORS[r.status] || ""}>
-                                  {r.status}
-                                </Badge>
-                              )}
-                            </div>
+                            {r.activityCategory && (
+                              <Badge variant="outline" className={`text-[10px] ${ACTIVITY_CATEGORY_COLORS[r.activityCategory] || ""}`}>
+                                {r.activityCategory}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            {r.status && (
+                              <Badge variant="outline" className={STATUS_COLORS[r.status] || ""}>
+                                {r.status}
+                              </Badge>
+                            )}
                           </td>
                           <td className="p-3">
                             <SyncBadge record={r} onRetry={() => handleRetrySync(r)} />

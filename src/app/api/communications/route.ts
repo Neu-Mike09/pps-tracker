@@ -107,6 +107,7 @@ export async function GET(req: NextRequest) {
     assignedTo: "assignedTo",
     deadline: "targetDate",
     activityDate: "activityDateTime",
+    category: "activityCategory",
     status: "status",
   };
   const prismaSortField = sortFieldMap[sortField] || "dateReceived";
